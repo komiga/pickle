@@ -1,0 +1,12 @@
+
+pickle.sublime-workspace
+
+*.make
+Makefile
+build/
+tmp/
+
+*.exe
+*.elf
+
+*.gen_interface

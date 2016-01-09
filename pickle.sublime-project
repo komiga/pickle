@@ -1,0 +1,71 @@
+{
+	"folders":
+	[
+		{
+			"name": "Root",
+			"path": "./",
+			"folder_exclude_patterns": [
+				"doc",
+				"dep",
+				"scripts",
+				"lib",
+				"app",
+				"test",
+				"tmp",
+				"build"
+			],
+			"file_exclude_patterns": [
+				"Makefile",
+				"*.make"
+			]
+		},
+		{
+			"name": "Documentation",
+			"path": "./doc/",
+			"folder_exclude_patterns": [
+				"html",
+				"gen_interface"
+			]
+		},
+		{
+			"name": "Dependencies",
+			"path": "./dep/",
+			"folder_exclude_patterns": [
+				"*"
+			]
+		},
+		{
+			"name": "Scripts",
+			"path": "./scripts/"
+		},
+		{
+			"name": "App: core",
+			"path": "./app/core/",
+			"folder_exclude_patterns": [
+				"src",
+				"build"
+			],
+			"file_exclude_patterns": [
+				"Makefile",
+				"*.make",
+				"*.exe",
+				"*.elf"
+			]
+		},
+		{
+			"name": "— app/core",
+			"path": "./app/core/src/pickle/app_core/",
+			"file_exclude_patterns": [
+				"*.gen_interface"
+			]
+		},
+		{
+			"name": "Test",
+			"path": "./test/"
+		}
+	],
+	"settings":
+	{
+		"tab_size": 4
+	}
+}

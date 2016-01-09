@@ -1,0 +1,12 @@
+#!/bin/bash
+
+premake4 $@
+
+if [[ -f Makefile ]]; then
+	sed -i \
+		-e 's/app_core_lib:/& | igen/' \
+		-e 's/app_core:/& | app_core_lib/' \
+		-e 's|\-f app_core\.make$|& -W src/pickle/app_core/main.cpp|' \
+		-e 's/clean:/&:/' \
+		Makefile
+fi
