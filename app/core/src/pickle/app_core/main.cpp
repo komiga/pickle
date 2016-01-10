@@ -10,6 +10,7 @@
 #include <togo/core/utility/utility.hpp>
 #include <togo/core/log/log.hpp>
 #include <togo/core/memory/memory.hpp>
+#include <togo/core/system/system.hpp>
 #include <togo/core/filesystem/filesystem.hpp>
 #include <togo/core/io/io.hpp>
 #include <togo/core/lua/lua.hpp>
@@ -60,6 +61,7 @@ signed main(signed argc, char* argv[]) {
 	luaL_openlibs(L);
 
 	lua::register_core(L);
+	system::register_lua_interface(L);
 	filesystem::register_lua_interface(L);
 	io::register_lua_interface(L);
 
