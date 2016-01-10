@@ -61,51 +61,77 @@ function M.ValueFilter:__init(name)
 	self.default_filter = nil
 end
 
-local function make_value_filter(name, tc, func)
-	U.type_assert(name, "string")
+local function make_value_filter(tc, func)
 	U.type_assert_any(tc, {"string", "table"}, true)
 	U.type_assert(func, "function", true)
-	return function(state, value)
+	return function(name, state, value)
 		if tc then
 			U.type_assert(value, tc)
 		end
 		if func then
-			value = func(value)
+			local err
+			value, err = func(state, value)
+			if err ~= nil then
+				return err
+			end
 		end
 		state[name] = value
+		return true
 	end
 end
 
-function M.ValueFilter:filter(name, tc, func)
-	local filter = make_value_filter(name, tc, func)
-	U.assert(not self.filters[name], "filter '%s' already defined", name)
-	self.filters[name] = filter
+function M.ValueFilter:filter(names, tc, func)
+	U.type_assert_any(names, {"string", "table"})
+	names = U.is_type(names, "table") and names or {names}
+
+	local filter = make_value_filter(tc, func)
+	for _, name in ipairs(names) do
+		U.assert(not self.filters[name], "filter '%s' already defined", name)
+		self.filters[name] = filter
+	end
 	return self
 end
 
-function M.ValueFilter:default(name, tc, func)
-	self.default_filter = make_value_filter(name, tc, func)
+function M.ValueFilter:default(func)
+	self.default_filter = func
 	return self
+end
+
+function M.ValueFilter:transform(func)
+	U.type_assert(func, "function", true)
+	self.transformer = func
+	return self
+end
+
+function M.ValueFilter:consume_safe(state, input)
+	for key, value in pairs(input) do
+		if self.transformer then
+			key, value = self.transformer(key, value)
+		end
+		local filter = self.filters[key] or self.default_filter
+		local err = not filter and "no matching filter" or false
+		err = err or filter(key, state, value)
+		if err ~= true then
+			return string.format(
+				"%s: filter '%s' <= '%s' (of type %s): %s",
+				self.name, tostring(key),
+				tostring(value), tostring(U.type_class(value)),
+				err
+			)
+		end
+	end
+	return nil
 end
 
 function M.ValueFilter:consume(state, input)
-	for name, value in pairs(input) do
-		local filter = self.filters[name]
-		if not filter then
-			filter = self.default_filter
-		end
-		if not filter then
-			M.error(
-				"%s: no filter for '%s' (of type %s)",
-				self.name, name, tostring(U.type_class(value))
-			)
-		end
-		filter(state, value)
+	local err = self:consume_safe(state, input)
+	if err then
+		M.error(err)
 	end
 end
 
 local config_vf = M.ValueFilter("PickleConfig")
-:filter("log_level", nil, function(value)
+:filter("log_level", nil, function(_, value)
 	if U.is_type(value, "string") then
 		value = M.LogLevel[value]
 	end
@@ -115,7 +141,7 @@ local config_vf = M.ValueFilter("PickleConfig")
 	M.error("config.log_level is invalid: %s", tostring(value))
 end)
 :filter("force_overwrite", "boolean")
-:filter("build_path", "string", function(value)
+:filter("build_path", "string", function(_, value)
 	return value
 	-- return FS.trim_trailing_slashes(value)
 end)
@@ -251,6 +277,8 @@ function M.Template:__init(path, data, layout)
 		P = M,
 		C = nil,
 	}
+	self.prelude_func = nil
+	self.content_func = nil
 
 	if data == nil then
 		data = IO.read_file(path)
@@ -270,8 +298,6 @@ function M.Template:__init(path, data, layout)
 		end
 		self.prelude_func = func
 		data = string.sub(data, U.min(#data, csep_end + 1), -1)
-	else
-		self.prelude_func = nil
 	end
 
 	local row, col
@@ -352,7 +378,7 @@ function M.get_template(name)
 	end
 	if not tpl then
 		tpl = M.Template(name)
-		M.do_add_template_cache(tpl, name)
+		M.add_template_cache(tpl, name)
 	end
 	return tpl
 end
