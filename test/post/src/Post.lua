@@ -26,8 +26,21 @@ function M:__init(source, file, destination)
 	self.template:prelude(prelude_data)
 	prelude_vf:consume(self, prelude_data)
 
-	P.output(source, P.path(destination, self.url), self.template, self)
-	table.insert(M.posts, self)
+	P.output(source, P.path(destination, self.url), self, self)
+	M.posts[source] = self
+end
+
+function M:write(source, destination, _)
+	return self.template:write(source, destination, self)
+end
+
+function M:replace(o, prev)
+	M.posts[o.source] = self
+	return true
+end
+
+function M:data(o)
+	return self.template:data(o)
 end
 
 return M
