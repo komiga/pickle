@@ -3,15 +3,40 @@ u8R""__RAW_STRING__(
 local U = require "togo.utility"
 local IO = require "togo.io"
 local FS = require "togo.filesystem"
+local S = require "togo.system"
 local P = require "Pickle"
+local Internal = require "Pickle.Internal"
 local M = U.module(...)
 
 M.info_text = "Pickle 0.00"
-M.usage_text = "usage: pickle [options] <command> [command_parameters]"
+M.usage_text = [[
+usage: pickle [options] <command> [command_parameters]
+--log=info | chatter | debug
+  set log level
+  default: info
+
+-f, --force-overwrite
+  force-overwrite build output
+  default: false
+]]
 M.help_hint = "\nuse `pickle help [command_name]` for help"
 
-M.option = {}
 M.command = {}
+
+local function find_last(s, b)
+	for i = #s, 1, -1 do
+		if string.byte(s, i) == b then
+			return i
+		end
+	end
+	return nil
+end
+
+local BYTE_DASH = string.byte('-', 1)
+
+local function vf_opt_transform(_, pair)
+	return pair.name, pair.value
+end
 
 local function load_script(path)
 	local source = IO.read_file(path)
@@ -30,9 +55,8 @@ end
 local function do_script(paths, command_func)
 	local success = true
 	local wp_orig = FS.working_dir()
-	for _, given_path in ipairs(paths) do
+	for i, given_path in ipairs(paths) do
 		given_path = given_path.value
-
 		local path = given_path
 		if FS.is_directory(path) then
 			path = P.path(path, "pickle.lua")
@@ -55,8 +79,10 @@ local function do_script(paths, command_func)
 		end
 		FS.set_working_dir(wp_orig)
 
-		-- Reset config and context
-		P.init()
+		if i ~= #paths then
+			-- Reset config and context
+			P.init()
+		end
 	end
 	FS.set_working_dir(wp_orig)
 	return success
@@ -75,37 +101,19 @@ local function make_command(bucket, names, help_text, func)
 	table.insert(bucket, cmd)
 end
 
-make_command(M.option,
-"--log", [[
---log=info | chatter | debug
-  set log level
-]],
-function(value)
-	if not U.is_type(value, "string") then
-		P.log("error: --log takes a string, not a %s", U.type_class(value))
-		return false
-	end
+local base_opt_vf = P.ValueFilter("Interface")
+:transform(vf_opt_transform)
+:filter("--log", "string", function(_, value)
 	local log_level = P.LogLevel[value]
-	if not log_level then
-		P.log("error: --log of '%s' is invalid", value)
-		return false
+	if log_level == nil then
+		return nil, "invalid value"
 	end
 	P.configure_default{log_level = log_level}
-	return true
+	return nil, true
 end)
-
-make_command(M.option,
-{"--force-overwrite", "-f"}, [[
--f, --force-overwrite
-  force-overwrite build output
-]],
-function(value)
-	if not U.is_type(value, "boolean") then
-		P.log("error: --log takes a boolean, not a %s", U.type_class(value))
-		return false
-	end
+:filter({"--force-overwrite", "-f"}, "boolean", function(_, value)
 	P.configure_default{force_overwrite = value}
-	return true
+	return nil, true
 end)
 
 make_command(M.command,
@@ -120,10 +128,6 @@ function(opts, params)
 	end
 	if name == nil then
 		P.log("%s\n\n%s\n", M.info_text, M.usage_text)
-
-		for _, opt in ipairs(M.option) do
-			P.log(opt.help_text)
-		end
 	end
 	for _, cmd in ipairs(M.command) do
 		local equal = cmd.name == name
@@ -163,18 +167,138 @@ function(opts, params)
 	end)
 end)
 
+local server_vf = P.ValueFilter("ServerCommand")
+:transform(function(name, value)
+	name, value = vf_opt_transform(name, value)
+	local b = find_last(name, BYTE_DASH) or 0
+	return string.sub(name, b + 1), value
+end)
+:filter("addr", "string")
+:filter("delay", "string", function(_, value)
+	local delay = tonumber(value)
+	if delay == nil then
+		return nil, "expected an integer"
+	end
+	return math.floor(delay)
+end)
+:filter("port", "string", function(_, value)
+	local port = tonumber(value)
+	if port == nil or port < 0 or port > 0xFFFF then
+		return nil, "expected an integer in [0, 0xFFFF]"
+	end
+	return port
+end)
+
+make_command(M.command,
+"server", [[
+server [--delay=<delay>] [--addr=<addr>] [--port=<port>] <path>
+  start a server
+
+--delay=<delay>
+  number of seconds to wait before recollecting
+  delay <= 0 disables recollection
+  default: 5
+
+--addr=<addr>
+  bind to the given address
+  default: 127.0.0.1
+
+--port=<port>
+  bind to the given port
+  default: 4000
+]],
+function(opts, params)
+	if #params ~= 1 then
+		P.log("error: build: expected a single path")
+		return false
+	end
+	local config = {
+		delay = 5,
+		addr = "127.0.0.1",
+		port = 4000,
+	}
+	local err = server_vf:consume_safe(config, opts)
+	if err then
+		P.log("error: %s", err)
+		return false
+	end
+
+	P.configure{watch = true}
+	local success = do_script(params, function(main_chunk)
+		main_chunk()
+		if not P.context.collected then
+			P.collect()
+		end
+		P.build()
+	end)
+	if not success then
+		return false
+	end
+
+	local server = Internal.make_server(
+		config.addr,
+		config.port,
+		P.config.log_level >= P.LogLevel.debug
+	)
+	P.log("server started: http://%s:%d/", config.addr, config.port)
+
+	local function handler(uri)
+		if string.sub(uri, 1, 1) == '/' then
+			uri = string.sub(uri, 2, -1)
+		end
+		if string.sub(uri, -1, -1) == '/' then
+			uri = P.path(uri, "index.html")
+		end
+		P.log_chatter("GET %s", uri)
+		local o = P.context.output[uri]
+		if o and o.data_cached then
+			P.log_chatter("  satisfied")
+			return o.data_cached
+		end
+		return nil, nil
+	end
+
+	local signal_received = false
+	local dir = FS.path_dir(params[1].value)
+	local wp_orig = FS.working_dir()
+	local now
+	local last_collect = S.secs_since_epoch()
+
+	Internal.set_signal_handler(Internal.SIGINT, function(_)
+		Internal.set_signal_handler(Internal.SIGINT, nil)
+		signal_received = true
+	end)
+	repeat
+		if config.delay > 0 then
+			now = S.secs_since_epoch()
+			if now - last_collect > config.delay then
+				P.log_chatter("recollecting")
+				if dir ~= "" then
+					FS.set_working_dir(dir)
+				end
+				P.collect()
+				P.build()
+				last_collect = S.secs_since_epoch()
+				if dir ~= "" then
+					FS.set_working_dir(wp_orig)
+				end
+			end
+		end
+		server:update(handler)
+		S.sleep_ms(50)
+	until signal_received
+	server:stop()
+end)
+
 function M.main(argv)
 	local _, opts, cmd_opts, cmd_params = U.parse_args(argv)
-	for _, p in ipairs(opts) do
-		local opt = M.option[p.name]
-		if not opt then
-			P.log("error: option '%s' not recognized", p.name)
-			P.log(M.help_hint)
-			return false
-		end
-		if not opt.func(p.value) then
-			return false
-		end
+	opts.name = nil
+	cmd_opts.name = nil
+
+	local err = base_opt_vf:consume_safe(nil, opts)
+	if err then
+		P.log("error: %s", err)
+		return false
 	end
 
 	local cmd = M.command[cmd_params.name]
