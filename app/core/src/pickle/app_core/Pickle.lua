@@ -105,6 +105,7 @@ function M.init()
 	M.context = {
 		collected = false,
 		built = false,
+		template_cache = {},
 		filters = {},
 		output = {},
 		output_files = {},
@@ -262,6 +263,35 @@ function M.Template:content(context)
 	U.type_assert(context, "table", true)
 	self.env.C = context or {}
 	return self.content_func()
+end
+
+function M.add_template_cache(tpl, name)
+	U.type_assert(tpl, M.Template)
+	if not name or name == "" or name == "<generated>" then
+		name = tpl.path
+	end
+	if name == "<generated>" then
+		P.error("cannot cache generated template")
+	end
+	U.type_assert(name, "string")
+	M.context.template_cache[name] = tpl
+end
+
+function M.get_template(name)
+	if name == "" or name == "<generated>" then
+		name = nil
+	end
+	local tpl
+	if U.is_type(name, M.Template) then
+		tpl = name
+	elseif name ~= nil then
+		tpl = M.context.template_cache[name]
+	end
+	if not tpl then
+		tpl = M.Template(name)
+		M.do_add_template_cache(tpl, name)
+	end
+	return tpl
 end
 
 -- (source, filter)
