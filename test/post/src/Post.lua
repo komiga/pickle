@@ -9,9 +9,9 @@ U.class(M)
 M.posts = {}
 
 local tpl_layout = P.Template(nil, [[
-<h1>{{ prop.title }}</h1>
+<h1>{{ title }}</h1>
 
-{@ template, prop @}
+{! content !}
 ]])
 
 function M:__init(source, file, destination)
@@ -19,21 +19,13 @@ function M:__init(source, file, destination)
 	self.prop = {
 		url = P.path("post", file),
 	}
-	self.template = P.Template(source)
+	self.template = P.Template(source, nil, tpl_layout)
 
 	self.template:prelude(self.prop)
 	U.type_assert(self.prop.title, "string")
 
-	P.output(source, P.path(destination, self.prop.url), self)
+	P.output(source, P.path(destination, self.prop.url), self.template, self.prop)
 	table.insert(M.posts, self)
-end
-
-function M:write(source, destination)
-	P.log_chatter("post: %s -> %s", source, destination)
-	local data = tpl_layout:content(self)
-	if not IO.write_file(destination, data) then
-		P.error_output("failed to write file", source, destination)
-	end
 end
 
 return M
