@@ -5,7 +5,7 @@
 
 #include <pickle/app_core/config.hpp>
 #include <pickle/app_core/types.hpp>
-#include <pickle/app_core/template.hpp>
+#include <pickle/app_core/internal.hpp>
 
 #include <togo/core/utility/utility.hpp>
 #include <togo/core/log/log.hpp>
@@ -19,8 +19,8 @@ using namespace pickle;
 
 namespace {
 
-static LuaModuleFunctionArray const li_template_funcs{
-	TOGO_LI_FUNC_REF(tpl, read_impl)
+static LuaModuleFunctionArray const li_internal_funcs{
+	TOGO_LI_FUNC_REF(internal, read_impl)
 };
 
 static LuaModuleRef const li_modules[]{
@@ -43,10 +43,10 @@ static LuaModuleRef const li_modules[]{
 	#include <pickle/app_core/Pickle.Filter.lua>
 },
 {
-	"Pickle.Template",
-	"pickle/app_core/Pickle.Template.lua",
-	li_template_funcs,
-	#include <pickle/app_core/Pickle.Template.lua>
+	"Pickle.Internal",
+	"pickle/app_core/Pickle.Internal.lua",
+	li_internal_funcs,
+	#include <pickle/app_core/Pickle.Internal.lua>
 },
 };
 

@@ -1,12 +1,12 @@
-#line 2 "pickle/app_core/template.hpp"
+#line 2 "pickle/app_core/internal.hpp"
 /**
 @copyright MIT license; see @ref index or the accompanying LICENSE file.
 
 @file
 @brief Template interface.
-@ingroup app_core_template
+@ingroup app_core_internal
 
-@defgroup app_core_template Template
+@defgroup app_core_internal Template
 @ingroup app_core
 @details
 */
@@ -18,17 +18,17 @@
 
 #include <togo/core/lua/types.hpp>
 
-#include <pickle/app_core/template.gen_interface>
+#include <pickle/app_core/internal.gen_interface>
 
 namespace pickle {
-namespace tpl {
+namespace internal {
 
 /**
-	@addtogroup app_core_template
+	@addtogroup app_core_internal
 	@{
 */
 
-/** @} */ // end of doc-group app_core_template
+/** @} */ // end of doc-group app_core_internal
 
-} // namespace tpl
+} // namespace internal
 } // namespace pickle
