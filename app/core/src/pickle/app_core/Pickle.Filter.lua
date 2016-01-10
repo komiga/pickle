@@ -15,7 +15,7 @@ function M.match(pattern, func)
 end
 
 function M.copy(source, file, destination)
-	P.output(P.path(source, file), P.path(destination, file), P.File)
+	P.output(P.path(source, file), P.path(destination, file), P.copy_file)
 end
 
 return M

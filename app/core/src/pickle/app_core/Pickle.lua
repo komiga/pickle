@@ -3,6 +3,7 @@ u8R""__RAW_STRING__(
 local U = require "togo.utility"
 local IO = require "togo.io"
 local FS = require "togo.filesystem"
+local Internal = require "Pickle.Internal"
 local M = U.module(...)
 
 M.LogLevel = {
@@ -160,15 +161,78 @@ local function casual_file_same(a, b)
 	return false
 end
 
-function M.File(source, destination)
-	local same = not M.config.force_overwrite and casual_file_same(source, destination)
-	M.log_chatter("copy: %s -> %s%s", source, destination, same and " [same]" or "")
-	if
-		not same and
-		not FS.copy_file(source, destination, true)
-	then
-		M.error_output("failed to copy file", source, destination)
+M.Template = U.class(M.Template)
+
+local function make_subs(repl_pairs)
+	local chars = {}
+	local repl = {}
+	for _, p in ipairs(repl_pairs) do
+		table.insert(chars, p[1])
+		repl[p[1]] = '&' .. p[2] .. ';'
 	end
+	return '[' .. table.concat(chars) .. ']', repl
+end
+
+local html_group, html_repl = make_subs{
+	{"&", "amp"},
+	{"<", "lt"},
+	{">", "gt"},
+}
+
+function M.tpl_out(x)
+	if x == nil then
+		return ""
+	elseif type(x) == "function" then
+		return M.tpl_out(x())
+	end
+	return tostring(x)
+end
+
+function M.tpl_out_escape(str)
+	if type(str) == "string" then
+		return string.gsub(str, html_group, html_sub)
+	end
+	return M.tpl_out(str)
+end
+
+local chunk_metatable = {
+	__index = function(t, k)
+		return rawget(t, k) or rawget(rawget(t, "C"), k) or _G[k]
+	end,
+}
+
+function M.Template:__init(path, data)
+	U.type_assert(path, "string", true)
+	U.type_assert(data, "string", path ~= nil)
+
+	if path == nil then
+		path = "<generated>"
+	end
+	if data == nil then
+		data = FS.read_file(path)
+		if data == nil then
+			M.error("failed to read template file: %s", path)
+		end
+	end
+	local err, row, col
+	data, err, row, col = Internal.template_transform(data)
+	if err then
+		M.error("syntax error in template: %s:%d:%d: %s", path, row, col, err)
+	end
+	-- M.log_debug("template %s:\n`%s`", path, data)
+	self.env = {P = M, C = nil}
+	data, err = load(data, "@" .. path, "t", setmetatable(self.env, chunk_metatable))
+	if err then
+		M.error("failed to read transformed template as Lua: %s", err)
+	end
+	self.func = data
+	self.path = path
+end
+
+function M.Template:render(context)
+	U.type_assert(context, "table", true)
+	self.env.C = context or {}
+	return self.func()
 end
 
 -- (source, filter)
@@ -195,28 +259,51 @@ function M.filter(a, b, c)
 	})
 end
 
-local function closure_data_string(data)
-	return function(source, destination)
-		M.log_chatter("string: %s -> %s", source, destination)
-		if not IO.write_file(destination, data) then
-			M.error_output("failed to write file", source, destination)
-		end
+function M.copy_file(source, destination, _, _)
+	local same = not M.config.force_overwrite and casual_file_same(source, destination)
+	M.log_chatter("copy: %s -> %s%s", source, destination, same and " [same]" or "")
+	if
+		not same and
+		not FS.copy_file(source, destination, true)
+	then
+		M.error_output("failed to copy file", source, destination)
 	end
 end
 
-function M.output(source, destination, data)
+function M.write_string(source, destination, data, _)
+	M.log_chatter("string: %s -> %s", source, destination)
+	if not IO.write_file(destination, data) then
+		M.error_output("failed to write file", source, destination)
+	end
+end
+
+function M.write_template(source, destination, tpl, context)
+	M.log_chatter("template: %s -> %s", source, destination)
+	local data = tpl:render(context or {})
+	if not IO.write_file(destination, data) then
+		M.error_output("failed to write file", source, destination)
+	end
+end
+
+function M.output(source, destination, data, context)
 	source = U.type_assert(source, "string", true) or "<generated>"
 	U.type_assert(destination, "string")
-	U.type_assert_any(data, {"function", "string"})
+	U.type_assert_any(data, {"function", "string", M.Template})
 
 	local o = {
 		source = source,
 		destination = destination,
+		func = nil,
 		data = data,
+		context = context,
 	}
 
-	if U.is_type(data, "string") then
-		o.data = closure_data_string(data)
+	if U.is_type(data, "function") then
+		o.func = data
+	elseif U.is_type(data, "string") then
+		o.func = M.write_string
+	elseif U.is_type(data, M.Template) then
+		o.func = M.write_template
 	end
 
 	if M.context.output_files[o.destination] then
@@ -326,7 +413,7 @@ function M.build()
 			if dir ~= "" and not M.create_path(M.path(M.config.build_path, dir)) then
 				M.error("failed to create destination directory: %s", o.destination)
 			end
-			o.data(o.source, M.path(M.config.build_path, o.destination))
+			o.func(o.source, M.path(M.config.build_path, o.destination), o.data, o.context)
 		end
 	end
 
