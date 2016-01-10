@@ -197,7 +197,10 @@ end
 
 local chunk_metatable = {
 	__index = function(t, k)
-		return rawget(t, k) or rawget(rawget(t, "C"), k) or _G[k]
+		return rawget(t, k) or rawget(t, "C")[k] or _G[k]
+	end,
+	__newindex = function(t, k, v)
+		rawget(t, "C")[k] = v
 	end,
 }
 
