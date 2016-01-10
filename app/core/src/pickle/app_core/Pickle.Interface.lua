@@ -19,7 +19,7 @@ local function load_script(path)
 		P.log("error: failed to read main: %s", path)
 		return nil
 	end
-	local main_chunk = loadstring(source, "@" .. path)
+	local main_chunk = load(source, "@" .. path, "t")
 	if main_chunk == nil then
 		P.log("error: failed to parse main: %s", path)
 		return nil
