@@ -163,9 +163,11 @@ function M.init()
 		template_cache = {},
 		filters = {},
 		output = {},
+		output_by_source = {},
 		any_output = false,
 	}
 	M.configure(M.config_default)
+	M.log_debug("init")
 end
 
 function M.path(...)
@@ -361,6 +363,7 @@ function M.Template:replace(o, prev)
 	prev.prelude_func = self.prelude_func
 	prev.content_func = self.content_func
 	M.add_template_cache(self)
+	return true
 end
 
 function M.Template:data(o)
@@ -401,11 +404,16 @@ end
 function M.filter(a, b, c)
 	local source, destination, filter
 
-	source = a
-	if c == nil then
+	if b == nil then
+		source = {}
+		destination = nil
+		filter = a
+	elseif c == nil then
+		source = a
 		destination = nil
 		filter = b
 	else
+		source = a
 		destination = U.type_assert(b, "string")
 		filter = c
 	end
@@ -417,6 +425,7 @@ function M.filter(a, b, c)
 		source = U.is_type(source, "table") and source or {source},
 		destination = destination == "" and nil or destination,
 		filter = filter,
+		processed = false,
 	})
 end
 
@@ -424,27 +433,27 @@ M.StringMedium = U.class(M.StringMedium)
 
 function M.StringMedium:__init(data)
 	U.type_assert(data, "string")
-	self.data = data
+	self.str = data
 end
 
 function M.StringMedium:write(source, destination, _)
 	M.log_chatter("string: %s -> %s", source, destination)
-	if not IO.write_file(destination, self.data) then
+	if not IO.write_file(destination, self.str) then
 		M.error_output("failed to write file", source, destination)
 	end
 end
 
 function M.StringMedium:replace(o, prev)
+	return prev.medium.str ~= self.str
 end
 
 function M.StringMedium:data(_)
-	return self.data
+	return self.str
 end
 
 M.FileMedium = U.class(M.FileMedium)
 
-function M.FileMedium:__init(data)
-	self.data = data
+function M.FileMedium:__init()
 end
 
 function M.FileMedium:write(source, destination, _)
@@ -459,10 +468,11 @@ function M.FileMedium:write(source, destination, _)
 end
 
 function M.FileMedium:replace(o, prev)
+	return o.last_modified ~= prev.last_modified
 end
 
 function M.FileMedium:data(o)
-	local data = self.read_file(o.source)
+	local data = IO.read_file(o.source)
 	if data == nil then
 		M.error("failed to read file: %s", o.source)
 	end
@@ -472,6 +482,7 @@ end
 function M.output(source, destination, data, context)
 	source = U.type_assert(source, "string", true) or "<generated>"
 	U.type_assert(destination, "string")
+	U.assert(#destination > 0, "destination is empty")
 
 	local o = {
 		source = source,
@@ -484,7 +495,6 @@ function M.output(source, destination, data, context)
 
 	if U.is_type(data, "string") then
 		o.medium = M.StringMedium(data)
-		o.data_cached = o.medium:data()
 	elseif U.is_type(data, "function") then
 		o.medium = M.FunctionMedium(data)
 	elseif U.type_class(data) ~= nil then
@@ -496,6 +506,7 @@ function M.output(source, destination, data, context)
 	U.type_assert(o.medium.replace, "function")
 	U.type_assert(o.medium.data, "function")
 
+	M.context.any_output = true
 	local prev = M.context.output[o.destination]
 	if prev then
 		if o.source ~= prev.source then
@@ -505,13 +516,18 @@ function M.output(source, destination, data, context)
 				o.source, o.destination
 			)
 		end
-		o.medium:replace(o, prev)
+		if not o.medium:replace(o, prev) then
+			return false
+		end
 		prev.medium = nil
 		prev.context = nil
 		prev.data_cached = nil
 	end
 	M.context.output[o.destination] = o
-	M.context.any_output = true
+	if o.source ~= "<generated>" then
+		M.context.output_by_source[o.source] = o
+	end
+	return true
 end
 
 function M.collect(cache)
@@ -528,41 +544,60 @@ function M.collect(cache)
 		end
 	end
 
-	local path
-	local o
-	local last_modified
+	local num_accepted = 0
+	local function do_filter(f, source, file, path)
+		local o = path and M.context.output_by_source[path] or nil
+		if o then
+			local last_modified = FS.time_last_modified(path)
+			if last_modified == o.last_modified then
+				return
+			end
+		end
+		-- don't retry generation filters
+		if f.processed and source == nil then
+			return
+		end
+		local rv = f.filter(source, file, f.destination)
+		if U.is_type(rv, "number") then
+			num_accepted = num_accepted + U.max(0, rv)
+		elseif rv then
+			num_accepted = num_accepted + 1
+		end
+		f.processed = true
+	end
 	for _, f in ipairs(M.context.filters) do
-		for _, source in ipairs(f.source) do
+		if #f.source == 0 then
 			if not cache then
-				M.log_chatter("processing filter: %s%s", source, f.destination and (" -> " .. f.destination) or "")
+				M.log_chatter("processing filter: <generated>%s", f.destination and (" -> " .. f.destination) or "")
 			end
-			if not FS.is_directory(source) then
-				M.error("source does not exist or is not a directory: %s", source)
-			end
-			for file, _ in FS.iterate_dir(source, FS.EntryType.file, false, true, false) do
-				path = M.path(source, file)
-				o = M.context.output[path]
-				if o then
-					last_modified = FS.time_last_modified(path)
-					if last_modified == o.last_modified then
-						goto l_continue
-					end
+			do_filter(f, nil, nil, nil)
+		else
+			for _, source in ipairs(f.source) do
+				if not cache then
+					M.log_chatter("processing filter: %s%s", source, f.destination and (" -> " .. f.destination) or "")
 				end
-				f.filter(source, file, f.destination)
-
-				::l_continue::
+				if not FS.is_directory(source) then
+					M.error("source does not exist or is not a directory: %s", source)
+				end
+				for file, _ in FS.iterate_dir(source, FS.EntryType.file, false, true, false) do
+					do_filter(f, source, file, M.path(source, file))
+				end
 			end
 		end
 	end
+
 	M.context.collected = true
+	return num_accepted
 end
 
 function M.build_to_cache(all)
 	U.type_assert(all, "boolean", true)
 
 	for _, o in pairs(M.context.output) do
-		if not o.data_cached then
-			log_update("cache: %s -> %s", o.source, o.destination)
+		if all or not o.data_cached then
+			if not M.context.built or not o.data_cached then
+				M.log("cache: %s -> %s", o.source, o.destination)
+			end
 			o.data_cached = o.medium:data(o)
 		end
 	end
