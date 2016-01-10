@@ -234,7 +234,7 @@ function M.Template:__init(path, data)
 			M.error("failed to read prelude as Lua: %s", err)
 		end
 		self.prelude_func = func
-		data = string.sub(data, csep_end, -1)
+		data = string.sub(data, U.min(#data, csep_end + 1), -1)
 	else
 		self.prelude_func = nil
 	end
