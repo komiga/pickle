@@ -184,7 +184,7 @@ l_error:
 
 static StringRef const s_template_prefix{
 u8R"(local _O_,__INCLUDE={},function(p, c)
-	return P.template(p):render(c or C)
+	return P.template(p):content(c or C)
 end
 )"};
 

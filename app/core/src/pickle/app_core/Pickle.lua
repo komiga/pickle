@@ -201,6 +201,8 @@ local chunk_metatable = {
 	end,
 }
 
+local BYTE_NEWLINE = string.byte("\n")
+
 function M.Template:__init(path, data)
 	U.type_assert(path, "string", true)
 	U.type_assert(data, "string", path ~= nil)
@@ -208,31 +210,55 @@ function M.Template:__init(path, data)
 	if path == nil then
 		path = "<generated>"
 	end
+
+	self.env = {P = M, C = nil}
+	self.path = path
+
 	if data == nil then
 		data = FS.read_file(path)
 		if data == nil then
 			M.error("failed to read template file: %s", path)
 		end
 	end
-	local err, row, col
+
+	local func, err
+	local csep, csep_end = string.find(data, "---content---\n", 1, true)
+	if csep ~= nil and (csep == 1 or string.byte(data, csep - 1, csep - 1) == BYTE_NEWLINE) then
+		local prelude_data = string.sub(data, 1, U.max(0, csep - 1))
+		M.log_debug("template prelude: %s:\n`%s`", path, prelude_data)
+		func, err = load(prelude_data, "@" .. path, "t", setmetatable(self.env, chunk_metatable))
+		if err then
+			M.error("failed to read prelude as Lua: %s", err)
+		end
+		self.prelude_func = func
+		data = string.sub(data, csep_end, -1)
+	else
+		self.prelude_func = nil
+	end
+
+	local row, col
 	data, err, row, col = Internal.template_transform(data)
 	if err then
 		M.error("syntax error in template: %s:%d:%d: %s", path, row, col, err)
 	end
-	-- M.log_debug("template %s:\n`%s`", path, data)
-	self.env = {P = M, C = nil}
-	data, err = load(data, "@" .. path, "t", setmetatable(self.env, chunk_metatable))
+	M.log_debug("template content: %s:\n`%s`", path, data)
+	func, err = load(data, "@" .. path, "t", setmetatable(self.env, chunk_metatable))
 	if err then
 		M.error("failed to read transformed template as Lua: %s", err)
 	end
-	self.func = data
-	self.path = path
+	self.content_func = func
 end
 
-function M.Template:render(context)
+function M.Template:prelude(context)
 	U.type_assert(context, "table", true)
 	self.env.C = context or {}
-	return self.func()
+	return self.prelude_func()
+end
+
+function M.Template:content(context)
+	U.type_assert(context, "table", true)
+	self.env.C = context or {}
+	return self.content_func()
 end
 
 -- (source, filter)
@@ -279,7 +305,7 @@ end
 
 function M.write_template(source, destination, tpl, context)
 	M.log_chatter("template: %s -> %s", source, destination)
-	local data = tpl:render(context or {})
+	local data = tpl:content(context or {})
 	if not IO.write_file(destination, data) then
 		M.error_output("failed to write file", source, destination)
 	end
