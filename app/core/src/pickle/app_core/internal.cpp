@@ -218,7 +218,7 @@ signed internal::li_template_transform(lua_State* L) {
 		{},
 		{memory::default_allocator()}
 	};
-	array::reserve(t.output, 8 * 1024);
+	array::reserve(t.output, 64 * 1024);
 	if (!transformer_consume(t)) {
 		lua::push_value(L, null_tag{});
 		lua::push_value(L, t.err);
