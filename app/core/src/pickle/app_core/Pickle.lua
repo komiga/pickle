@@ -215,7 +215,7 @@ function M.Template:__init(path, data)
 	self.path = path
 
 	if data == nil then
-		data = FS.read_file(path)
+		data = IO.read_file(path)
 		if data == nil then
 			M.error("failed to read template file: %s", path)
 		end
