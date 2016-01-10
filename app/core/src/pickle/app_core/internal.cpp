@@ -28,7 +28,6 @@
 
 #pragma GCC diagnostic pop
 
-
 namespace pickle {
 
 namespace {
