@@ -14,7 +14,6 @@ M.LogLevel = {
 
 M.config_default = {
 	log_level = M.LogLevel.info,
-	watch = false,
 	force_overwrite = false,
 	build_path = "public",
 }
@@ -141,7 +140,6 @@ local config_vf = M.ValueFilter("PickleConfig")
 	end
 	M.error("config.log_level is invalid: %s", tostring(value))
 end)
-:filter("watch", "boolean")
 :filter("force_overwrite", "boolean")
 :filter("build_path", "string", function(_, value)
 	return value
@@ -516,8 +514,10 @@ function M.output(source, destination, data, context)
 	M.context.any_output = true
 end
 
-function M.collect()
-	if not M.config.watch then
+function M.collect(cache)
+	U.type_assert(cache, "boolean", true)
+
+	if not cache then
 		if M.context.collected then
 			M.log("NOTE: already collected once this run")
 		end
@@ -533,7 +533,7 @@ function M.collect()
 	local last_modified
 	for _, f in ipairs(M.context.filters) do
 		for _, source in ipairs(f.source) do
-			if not M.config.watch then
+			if not cache then
 				M.log_chatter("processing filter: %s%s", source, f.destination and (" -> " .. f.destination) or "")
 			end
 			if not FS.is_directory(source) then
@@ -557,17 +557,19 @@ function M.collect()
 	M.context.collected = true
 end
 
-local function build_to_cache()
-	local log_update = M.context.built and M.log or M.log_chatter
+function M.build_to_cache(all)
+	U.type_assert(all, "boolean", true)
+
 	for _, o in pairs(M.context.output) do
 		if not o.data_cached then
 			log_update("cache: %s -> %s", o.source, o.destination)
 			o.data_cached = o.medium:data(o)
 		end
 	end
+	M.context.built = true
 end
 
-local function build_to_filesystem()
+function M.build_to_filesystem()
 	if M.context.built then
 		M.log("NOTE: already built once this run")
 	end
@@ -648,14 +650,6 @@ local function build_to_filesystem()
 	end
 
 	M.log("build complete")
-end
-
-function M.build()
-	if M.config.watch then
-		build_to_cache()
-	else
-		build_to_filesystem()
-	end
 	M.context.built = true
 end
 
