@@ -269,6 +269,14 @@ function M.Template:content(context)
 	return self.content_func()
 end
 
+function M.Template:write(source, destination, context)
+	M.log_chatter("template: %s -> %s", source, destination)
+	local data = self:content(context or {})
+	if not IO.write_file(destination, data) then
+		M.error_output("failed to write file", source, destination)
+	end
+end
+
 function M.add_template_cache(tpl, name)
 	U.type_assert(tpl, M.Template)
 	if not name or name == "" or name == "<generated>" then
@@ -322,7 +330,7 @@ function M.filter(a, b, c)
 	})
 end
 
-function M.copy_file(source, destination, _, _)
+function M.copy_file(_, source, destination, _)
 	local same = not M.config.force_overwrite and casual_file_same(source, destination)
 	M.log_chatter("copy: %s -> %s%s", source, destination, same and " [same]" or "")
 	if
@@ -333,16 +341,8 @@ function M.copy_file(source, destination, _, _)
 	end
 end
 
-function M.write_string(source, destination, data, _)
+function M.write_string(data, source, destination, _)
 	M.log_chatter("string: %s -> %s", source, destination)
-	if not IO.write_file(destination, data) then
-		M.error_output("failed to write file", source, destination)
-	end
-end
-
-function M.write_template(source, destination, tpl, context)
-	M.log_chatter("template: %s -> %s", source, destination)
-	local data = tpl:content(context or {})
 	if not IO.write_file(destination, data) then
 		M.error_output("failed to write file", source, destination)
 	end
@@ -351,7 +351,6 @@ end
 function M.output(source, destination, data, context)
 	source = U.type_assert(source, "string", true) or "<generated>"
 	U.type_assert(destination, "string")
-	U.type_assert_any(data, {"function", "string", M.Template})
 
 	local o = {
 		source = source,
@@ -365,8 +364,13 @@ function M.output(source, destination, data, context)
 		o.func = data
 	elseif U.is_type(data, "string") then
 		o.func = M.write_string
-	elseif U.is_type(data, M.Template) then
-		o.func = M.write_template
+	elseif U.type_class(data) ~= nil then
+		o.func = getmetatable(data).write
+		if not o.func then
+			M.error("given data (a class instance) has no write() metamethod")
+		end
+	else
+		M.error("data must be a function, string, or class instance")
 	end
 
 	if M.context.output_files[o.destination] then
@@ -476,7 +480,7 @@ function M.build()
 			if dir ~= "" and not M.create_path(M.path(M.config.build_path, dir)) then
 				M.error("failed to create destination directory: %s", o.destination)
 			end
-			o.func(o.source, M.path(M.config.build_path, o.destination), o.data, o.context)
+			o.func(o.data, o.source, M.path(M.config.build_path, o.destination), o.context)
 		end
 	end
 
