@@ -207,16 +207,21 @@ local chunk_metatable = {
 
 local BYTE_NEWLINE = string.byte("\n")
 
-function M.Template:__init(path, data)
+function M.Template:__init(path, data, layout)
 	U.type_assert(path, "string", true)
 	U.type_assert(data, "string", path ~= nil)
+	U.type_assert_any(layout, {"string", M.Template}, true)
 
 	if path == nil then
 		path = "<generated>"
 	end
 
-	self.env = {P = M, C = nil}
 	self.path = path
+	self.layout = layout and M.get_template(layout) or nil
+	self.env = {
+		P = M,
+		C = nil,
+	}
 
 	if data == nil then
 		data = IO.read_file(path)
@@ -253,20 +258,37 @@ function M.Template:__init(path, data)
 	self.content_func = func
 end
 
+local function do_tpl_call(env, func, context)
+	context = context or {}
+	rawset(env, "C", context)
+	local result = func()
+	rawset(env, "C", nil)
+	return result
+end
+
 function M.Template:prelude(context)
 	if not U.type_class(context) then
 		U.type_assert(context, "table", true)
 	end
-	rawset(self.env, "C", context or {})
-	return self.prelude_func()
+	return do_tpl_call(self.env, self.prelude_func, context)
 end
 
 function M.Template:content(context)
 	if not U.type_class(context) then
 		U.type_assert(context, "table", true)
 	end
-	rawset(self.env, "C", context or {})
-	return self.content_func()
+	local content = do_tpl_call(self.env, self.content_func, context)
+	if self.layout then
+		content = self.layout:content(setmetatable({
+			C = context, content = content
+		}, {
+			__index = function(t, k)
+				return k == "content" and rawget(t, "content") or rawget(t, "C")[k]
+			end,
+			__newindex = context,
+		}))
+	end
+	return content
 end
 
 function M.Template:write(source, destination, context)
