@@ -432,7 +432,7 @@ static void signal_handler(signed signum) {
 
 } // anonymous namespace
 
-IGEN_PRIVATE
+/// Set or remove a signal handler.
 signed internal::li_set_signal_handler(lua_State* L) {
 	signed signum = lua::get_integer(L, 1);
 	bool has_handler = lua_type(L, 2) != LUA_TNIL;
