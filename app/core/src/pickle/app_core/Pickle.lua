@@ -254,14 +254,18 @@ function M.Template:__init(path, data)
 end
 
 function M.Template:prelude(context)
-	U.type_assert(context, "table", true)
-	self.env.C = context or {}
+	if not U.type_class(context) then
+		U.type_assert(context, "table", true)
+	end
+	rawset(self.env, "C", context or {})
 	return self.prelude_func()
 end
 
 function M.Template:content(context)
-	U.type_assert(context, "table", true)
-	self.env.C = context or {}
+	if not U.type_class(context) then
+		U.type_assert(context, "table", true)
+	end
+	rawset(self.env, "C", context or {})
 	return self.content_func()
 end
 
