@@ -51,20 +51,61 @@ function M.error_output(msg, source, destination, ...)
 	error(U.get_trace(1) .. ": error: " .. string.format(msg, ...) .. string.format(" [output: %s -> %s]", source, destination), 0)
 end
 
-local config_values = {}
-local function config_value(name, tc, func)
-	config_values[name] = function(config, value)
+M.ValueFilter = U.class(M.ValueFilter)
+
+function M.ValueFilter:__init(name)
+	U.type_assert(name, "string")
+
+	self.name = name
+	self.filters = {}
+	self.default_filter = nil
+end
+
+local function make_value_filter(name, tc, func)
+	U.type_assert(name, "string")
+	U.type_assert_any(tc, {"string", "table"}, true)
+	U.type_assert(func, "function", true)
+	return function(state, value)
 		if tc then
 			U.type_assert(value, tc)
 		end
 		if func then
 			value = func(value)
 		end
-		config[name] = value
+		state[name] = value
 	end
 end
 
-config_value("log_level", nil, function(value)
+function M.ValueFilter:filter(name, tc, func)
+	local filter = make_value_filter(name, tc, func)
+	U.assert(not self.filters[name], "filter '%s' already defined", name)
+	self.filters[name] = filter
+	return self
+end
+
+function M.ValueFilter:default(name, tc, func)
+	self.default_filter = make_value_filter(name, tc, func)
+	return self
+end
+
+function M.ValueFilter:consume(state, input)
+	for name, value in pairs(input) do
+		local filter = self.filters[name]
+		if not filter then
+			filter = self.default_filter
+		end
+		if not filter then
+			M.error(
+				"%s: no filter for '%s' (of type %s)",
+				self.name, name, tostring(U.type_class(value))
+			)
+		end
+		filter(state, value)
+	end
+end
+
+local config_vf = M.ValueFilter("PickleConfig")
+:filter("log_level", nil, function(value)
 	if U.is_type(value, "string") then
 		value = M.LogLevel[value]
 	end
@@ -73,30 +114,18 @@ config_value("log_level", nil, function(value)
 	end
 	M.error("config.log_level is invalid: %s", tostring(value))
 end)
-
-config_value("force_overwrite", "boolean")
-
-config_value("build_path", "string", function(value)
+:filter("force_overwrite", "boolean")
+:filter("build_path", "string", function(value)
 	return value
 	-- return FS.trim_trailing_slashes(value)
 end)
 
-local function do_configure(config, input)
-	for name, value in pairs(input) do
-		local f = config_values[name]
-		if not f then
-			M.error("config value '%s' not found", name)
-		end
-		f(config, value)
-	end
-end
-
 function M.configure(config)
-	do_configure(M.config, config)
+	config_vf:consume(M.config, config)
 end
 
 function M.configure_default(config)
-	do_configure(M.config_default, config)
+	config_vf:consume(M.config_default, config)
 	M.configure(config)
 end
 
