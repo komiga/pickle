@@ -16,3 +16,31 @@ P.filter("post", F.match(".*%.html", Post))
 
 P.collect()
 P.output(nil, "a/test_generated", [[pickle pickle]])
+
+local t = P.Template(nil, [[
+X
+pre{{x}}post
+X
+{% for i = 1, 4 do %}
+	{{ i }}
+{% end %}
+X
+X
+{% for i = 1, 4 do %}{{ i }}{% end %}
+X
+
+pre{{y}}post
+
+X]])
+
+
+local c = {
+	x = 1,
+	y = 2,
+	f = function()
+		return 3
+	end,
+}
+-- P.log_chatter(t:render(c))
+
+P.output(nil, "test_template", t, c)
