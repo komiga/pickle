@@ -182,11 +182,14 @@ l_error:
 	return false;
 }
 
-static StringRef const s_template_prefix{
+static StringRef const
+s_template_prefix{
 u8R"(local __O,__INCLUDE={},function(p, c)
 	return P.get_template(p):content(c or C)
 end
-)"};
+)"},
+s_template_post{
+u8R"(return table.concat(__O))"};
 
 static bool transformer_consume(Transformer& t) {
 	TX_OUT(s_template_prefix);
@@ -198,7 +201,7 @@ static bool transformer_consume(Transformer& t) {
 	if (!transformer_block(t)) {
 		return false;
 	}
-	TX_OUT("return table.concat(__O)");
+	TX_OUT(s_template_post);
 	return true;
 }
 
