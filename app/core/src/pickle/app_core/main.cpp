@@ -20,7 +20,7 @@ using namespace pickle;
 namespace {
 
 static LuaModuleFunctionArray const li_internal_funcs{
-	TOGO_LI_FUNC_REF(internal, read_impl)
+	TOGO_LI_FUNC_REF(internal, template_transform)
 };
 
 static LuaModuleRef const li_modules[]{
