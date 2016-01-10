@@ -9,13 +9,14 @@ function M.match(pattern, func)
 	pattern = "^" .. pattern .. "$"
 	return function(source, file, destination)
 		if string.match(file, pattern) then
-			func(source, file, destination)
+			return func(source, file, destination)
 		end
+		return false
 	end
 end
 
 function M.copy(source, file, destination)
-	P.output(P.path(source, file), P.path(destination, file), P.copy_file)
+	return P.output(P.path(source, file), P.path(destination, file), P.FileMedium())
 end
 
 return M
