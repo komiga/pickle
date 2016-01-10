@@ -113,7 +113,7 @@ static bool transformer_find_block_tail(
 	} \
 } while (false)
 
-#define TX_ELEMENT "_O_[#_O_+1]="
+#define TX_ELEMENT "__O[#__O+1]="
 
 #define TX_OUT(s) string::append(t.output, s)
 #define TX_OUT_ELEM(s) TX_OUT(TX_ELEMENT s)
@@ -183,7 +183,7 @@ l_error:
 }
 
 static StringRef const s_template_prefix{
-u8R"(local _O_,__INCLUDE={},function(p, c)
+u8R"(local __O,__INCLUDE={},function(p, c)
 	return P.get_template(p):content(c or C)
 end
 )"};
@@ -198,7 +198,7 @@ static bool transformer_consume(Transformer& t) {
 	if (!transformer_block(t)) {
 		return false;
 	}
-	TX_OUT("return table.concat(_O_)");
+	TX_OUT("return table.concat(__O)");
 	return true;
 }
 
