@@ -14,6 +14,7 @@ M.LogLevel = {
 
 M.config_default = {
 	log_level = M.LogLevel.info,
+	watch = false,
 	force_overwrite = false,
 	build_path = "public",
 }
@@ -140,6 +141,7 @@ local config_vf = M.ValueFilter("PickleConfig")
 	end
 	M.error("config.log_level is invalid: %s", tostring(value))
 end)
+:filter("watch", "boolean")
 :filter("force_overwrite", "boolean")
 :filter("build_path", "string", function(_, value)
 	return value
@@ -163,7 +165,7 @@ function M.init()
 		template_cache = {},
 		filters = {},
 		output = {},
-		output_files = {},
+		any_output = false,
 	}
 	M.configure(M.config_default)
 end
@@ -354,6 +356,19 @@ function M.Template:write(source, destination, context)
 	end
 end
 
+function M.Template:replace(o, prev)
+	prev.path = self.path
+	prev.layout = self.layout
+	prev.env = self.env
+	prev.prelude_func = self.prelude_func
+	prev.content_func = self.content_func
+	M.add_template_cache(self)
+end
+
+function M.Template:data(o)
+	return self:content(o.context or {})
+end
+
 function M.add_template_cache(tpl, name)
 	U.type_assert(tpl, M.Template)
 	if not name or name == "" or name == "<generated>" then
@@ -407,7 +422,34 @@ function M.filter(a, b, c)
 	})
 end
 
-function M.copy_file(_, source, destination, _)
+M.StringMedium = U.class(M.StringMedium)
+
+function M.StringMedium:__init(data)
+	U.type_assert(data, "string")
+	self.data = data
+end
+
+function M.StringMedium:write(source, destination, _)
+	M.log_chatter("string: %s -> %s", source, destination)
+	if not IO.write_file(destination, self.data) then
+		M.error_output("failed to write file", source, destination)
+	end
+end
+
+function M.StringMedium:replace(o, prev)
+end
+
+function M.StringMedium:data(_)
+	return self.data
+end
+
+M.FileMedium = U.class(M.FileMedium)
+
+function M.FileMedium:__init(data)
+	self.data = data
+end
+
+function M.FileMedium:write(source, destination, _)
 	local same = not M.config.force_overwrite and casual_file_same(source, destination)
 	M.log_chatter("copy: %s -> %s%s", source, destination, same and " [same]" or "")
 	if
@@ -418,11 +460,15 @@ function M.copy_file(_, source, destination, _)
 	end
 end
 
-function M.write_string(data, source, destination, _)
-	M.log_chatter("string: %s -> %s", source, destination)
-	if not IO.write_file(destination, data) then
-		M.error_output("failed to write file", source, destination)
+function M.FileMedium:replace(o, prev)
+end
+
+function M.FileMedium:data(o)
+	local data = self.read_file(o.source)
+	if data == nil then
+		M.error("failed to read file: %s", o.source)
 	end
+	return data
 end
 
 function M.output(source, destination, data, context)
@@ -432,56 +478,96 @@ function M.output(source, destination, data, context)
 	local o = {
 		source = source,
 		destination = destination,
-		func = nil,
-		data = data,
+		medium = nil,
 		context = context,
+		data_cached = nil,
+		last_modified = source ~= "<generated>" and FS.time_last_modified(source) or 0,
 	}
 
-	if U.is_type(data, "function") then
-		o.func = data
-	elseif U.is_type(data, "string") then
-		o.func = M.write_string
+	if U.is_type(data, "string") then
+		o.medium = M.StringMedium(data)
+		o.data_cached = o.medium:data()
+	elseif U.is_type(data, "function") then
+		o.medium = M.FunctionMedium(data)
 	elseif U.type_class(data) ~= nil then
-		o.func = getmetatable(data).write
-		if not o.func then
-			M.error("given data (a class instance) has no write() metamethod")
-		end
+		o.medium = data
 	else
 		M.error("data must be a function, string, or class instance")
 	end
+	U.type_assert(o.medium.write, "function")
+	U.type_assert(o.medium.replace, "function")
+	U.type_assert(o.medium.data, "function")
 
-	if M.context.output_files[o.destination] then
-		M.error("output destination already specified as %s -> %s", o.source, o.destination)
+	local prev = M.context.output[o.destination]
+	if prev then
+		if o.source ~= prev.source then
+			M.log(
+				"output clobbered:\n%s -> %s\nreplaced by\n%s -> %s",
+				prev.source, prev.destination,
+				o.source, o.destination
+			)
+		end
+		o.medium:replace(o, prev)
+		prev.medium = nil
+		prev.context = nil
+		prev.data_cached = nil
 	end
-	M.context.output_files[o.destination] = o
-	table.insert(M.context.output, o)
+	M.context.output[o.destination] = o
+	M.context.any_output = true
 end
 
 function M.collect()
-	if M.context.collected then
-		M.log("NOTE: already collected once this run")
-	end
-	if #M.context.filters == 0 then
-		M.log("no filters")
-		return
+	if not M.config.watch then
+		if M.context.collected then
+			M.log("NOTE: already collected once this run")
+		end
+
+		M.log("collecting")
+		if #M.context.filters == 0 then
+			M.log("no filters")
+		end
 	end
 
-	M.log("collecting")
+	local path
+	local o
+	local last_modified
 	for _, f in ipairs(M.context.filters) do
 		for _, source in ipairs(f.source) do
-			M.log_chatter("processing filter: %s%s", source, f.destination and (" -> " .. f.destination) or "")
+			if not M.config.watch then
+				M.log_chatter("processing filter: %s%s", source, f.destination and (" -> " .. f.destination) or "")
+			end
 			if not FS.is_directory(source) then
 				M.error("source does not exist or is not a directory: %s", source)
 			end
 			for file, _ in FS.iterate_dir(source, FS.EntryType.file, false, true, false) do
+				path = M.path(source, file)
+				o = M.context.output[path]
+				if o then
+					last_modified = FS.time_last_modified(path)
+					if last_modified == o.last_modified then
+						goto l_continue
+					end
+				end
 				f.filter(source, file, f.destination)
+
+				::l_continue::
 			end
 		end
 	end
 	M.context.collected = true
 end
 
-function M.build()
+local function build_to_cache()
+	local log_update = M.context.built and M.log or M.log_chatter
+	for _, o in pairs(M.context.output) do
+		if not o.data_cached then
+			log_update("cache: %s -> %s", o.source, o.destination)
+			o.data_cached = o.medium:data(o)
+		end
+	end
+end
+
+local function build_to_filesystem()
 	if M.context.built then
 		M.log("NOTE: already built once this run")
 	end
@@ -491,11 +577,11 @@ function M.build()
 		M.error("failed to create build directory: %s", M.config.build_path)
 	end
 
-	M.log("removing stale build data")
+	M.log_chatter("removing stale build data")
 	local check_stale_dirs = {}
 	for name, entry_type in FS.iterate_dir(M.config.build_path, FS.EntryType.all, false, true, false) do
 		if entry_type == FS.EntryType.file then
-			if M.context.output_files[name] then
+			if M.context.output[name] then
 				goto l_continue
 			end
 			local path = M.path(M.config.build_path, name)
@@ -548,21 +634,29 @@ function M.build()
 		end
 	end
 
-	M.log("writing")
-	if #M.context.output == 0 then
-		M.log("no output files")
+	if M.context.any_output then
+		M.log("writing")
 	else
-		for _, o in ipairs(M.context.output) do
-			local dir = FS.path_dir(o.destination)
-			if dir ~= "" and not M.create_path(M.path(M.config.build_path, dir)) then
-				M.error("failed to create destination directory: %s", o.destination)
-			end
-			o.func(o.data, o.source, M.path(M.config.build_path, o.destination), o.context)
+		M.log("no output files")
+	end
+	for _, o in pairs(M.context.output) do
+		local dir = FS.path_dir(o.destination)
+		if dir ~= "" and not M.create_path(M.path(M.config.build_path, dir)) then
+			M.error("failed to create destination directory: %s", o.destination)
 		end
+		o.medium:write(o.source, M.path(M.config.build_path, o.destination), o.context)
 	end
 
-	M.context.built = true
 	M.log("build complete")
+end
+
+function M.build()
+	if M.config.watch then
+		build_to_cache()
+	else
+		build_to_filesystem()
+	end
+	M.context.built = true
 end
 
 M.init()
