@@ -53,15 +53,19 @@ local function load_script(path)
 	return main_chunk
 end
 
+local function script_path(given_path)
+	if FS.is_directory(given_path) then
+		given_path = P.path(given_path, "pickle.lua")
+	end
+	return given_path
+end
+
 local function do_script(paths, command_func)
 	local success = true
 	local wp_orig = FS.working_dir()
 	for i, given_path in ipairs(paths) do
 		given_path = given_path.value
-		local path = given_path
-		if FS.is_directory(path) then
-			path = P.path(path, "pickle.lua")
-		end
+		local path = script_path(given_path)
 		if not FS.is_file(path) then
 			P.log("error: file not found (as file or sub-file): %s", given_path)
 			return nil
