@@ -167,7 +167,7 @@ function(opts, params)
 			P.collect()
 		end
 		if not P.context.built then
-			P.build()
+			P.build_to_filesystem()
 		end
 	end)
 end)
@@ -199,18 +199,18 @@ make_command(M.command,
 server [--delay=<delay>] [--addr=<addr>] [--port=<port>] <path>
   start a server
 
---delay=<delay>
-  number of seconds to wait before recollecting
-  delay <= 0 disables recollection
-  default: 5
+  --delay=<delay>
+    number of seconds to wait before recollecting
+    delay <= 0 disables recollection
+    default: 1
 
---addr=<addr>
-  bind to the given address
-  default: 127.0.0.1
+  --addr=<addr>
+    bind to the given address
+    default: 127.0.0.1
 
---port=<port>
-  bind to the given port
-  default: 4000
+  --port=<port>
+    bind to the given port
+    default: 4000
 ]],
 function(opts, params)
 	if #params ~= 1 then
@@ -218,7 +218,7 @@ function(opts, params)
 		return false
 	end
 	local config = {
-		delay = 5,
+		delay = 1,
 		addr = "127.0.0.1",
 		port = 4000,
 	}
@@ -228,15 +228,27 @@ function(opts, params)
 		return false
 	end
 
-	P.configure{watch = true}
-	local success = do_script(params, function(main_chunk)
-		main_chunk()
-		if not P.context.collected then
-			P.collect()
+	local main_path = script_path(params[1].value)
+	local main_last_modified = 0
+	local function reload_main()
+		local last_modified = FS.time_last_modified(main_path)
+		if main_last_modified == last_modified then
+			return true
+		elseif main_last_modified ~= 0 then
+			P.log("reloading script: %s", main_path)
+			P.init()
 		end
-		P.build()
-	end)
-	if not success then
+		local success = do_script(params, function(main_chunk)
+			main_chunk()
+			if not P.context.collected then
+				P.collect(true)
+			end
+			P.build_to_cache(main_last_modified ~= 0)
+		end)
+		main_last_modified = last_modified
+		return success
+	end
+	if not reload_main() then
 		return false
 	end
 
@@ -247,24 +259,32 @@ function(opts, params)
 	)
 	P.log("server started: http://%s:%d/", config.addr, config.port)
 
-	local function handler(uri)
-		if string.sub(uri, 1, 1) == '/' then
-			uri = string.sub(uri, 2, -1)
+	local function handler(given_uri)
+		if #given_uri > 1 and string.sub(given_uri, 1, 1) == '/' then
+			given_uri = string.sub(given_uri, 2, -1)
 		end
+		local uri = given_uri
 		if string.sub(uri, -1, -1) == '/' then
 			uri = P.path(uri, "index.html")
 		end
-		P.log_chatter("GET %s", uri)
 		local o = P.context.output[uri]
-		if o and o.data_cached then
-			P.log_chatter("  satisfied")
-			return o.data_cached
+		local data = o and o.data_cached
+		local status_code = (data ~= nil) and 200 or 404
+		if not data then
+			o = P.context.output["404.html"]
+			data = o and o.data_cached
 		end
-		return nil, nil
+		P.log_chatter(
+			"GET %s%s => %s",
+			given_uri,
+			uri ~= given_uri and string.format(" => %s", uri) or "",
+			status_code
+		)
+		return data, status_code
 	end
 
 	local signal_received = false
-	local dir = FS.path_dir(params[1].value)
+	local dir = FS.path_dir(main_path)
 	local wp_orig = FS.working_dir()
 	local now
 	local last_collect = S.secs_since_epoch()
@@ -277,12 +297,16 @@ function(opts, params)
 		if config.delay > 0 then
 			now = S.secs_since_epoch()
 			if now - last_collect > config.delay then
-				P.log_chatter("recollecting")
+				P.log_debug("checking for changes")
+				if not reload_main() then
+					return false
+				end
 				if dir ~= "" then
 					FS.set_working_dir(dir)
 				end
-				P.collect()
-				P.build()
+				if P.collect(true) > 0 then
+					P.build_to_cache(true)
+				end
 				last_collect = S.secs_since_epoch()
 				if dir ~= "" then
 					FS.set_working_dir(wp_orig)
@@ -293,6 +317,7 @@ function(opts, params)
 		S.sleep_ms(50)
 	until signal_received
 	server:stop()
+	return true
 end)
 
 function M.main(argv)
