@@ -38,10 +38,10 @@ local c = {
 		return 3
 	end,
 	prelude_test = function()
-		U.trace()
+		P.log_debug("TRACE")
 	end,
 }
-P.log(t:content(c))
+P.log_debug("\n`%s`", t:content(c))
 t:prelude(c)
 
 P.output(nil, "test_template", t, c)
