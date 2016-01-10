@@ -191,7 +191,7 @@ end
 
 function M.tpl_out_escape(str)
 	if type(str) == "string" then
-		return string.gsub(str, html_group, html_sub)
+		return string.gsub(str, html_group, html_repl)
 	end
 	return M.tpl_out(str)
 end
@@ -271,7 +271,7 @@ function M.add_template_cache(tpl, name)
 		name = tpl.path
 	end
 	if name == "<generated>" then
-		P.error("cannot cache generated template")
+		M.error("cannot cache generated template")
 	end
 	U.type_assert(name, "string")
 	M.context.template_cache[name] = tpl
