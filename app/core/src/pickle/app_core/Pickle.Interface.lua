@@ -194,6 +194,24 @@ end)
 	return port
 end)
 
+local content_types = {}
+do
+	local function add_content_type(group, ext, real)
+		content_types[ext] = group .. '/' .. (real or ext)
+	end
+	add_content_type("text", "css")
+	add_content_type("text", "html")
+
+	add_content_type("image", "svg", "svg+xml")
+	add_content_type("image", "png")
+	add_content_type("image", "jpg")
+	add_content_type("image", "jpeg")
+	add_content_type("image", "gif")
+	add_content_type("image", "bmp")
+	add_content_type("image", "ico")
+end
+
+
 make_command(M.command,
 "server", [[
 server [--delay=<delay>] [--addr=<addr>] [--port=<port>] <path>
@@ -280,7 +298,9 @@ function(opts, params)
 			uri ~= given_uri and string.format(" => %s", uri) or "",
 			status_code
 		)
-		return data, status_code
+		local headers = {}
+		headers["Content-Type"] = content_types[U.file_extension(uri)] or "text/plain"
+		return data, status_code, headers
 	end
 
 	local signal_received = false
