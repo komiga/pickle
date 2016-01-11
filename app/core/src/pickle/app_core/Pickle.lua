@@ -441,6 +441,27 @@ function M.filter(a, b, c)
 	})
 end
 
+M.FakeMedium = U.class(M.FakeMedium)
+
+function M.FakeMedium:__init(proxy)
+	self.proxy = proxy
+	U.assert(self.proxy == nil or U.is_type(U.type_class(self.proxy), "table"))
+end
+
+function M.FakeMedium:write(_, _, _)
+end
+
+function M.FakeMedium:replace(o, prev)
+	if self.proxy and self.proxy.replace then
+		return self.proxy:replace(o, prev)
+	end
+	return true
+end
+
+function M.FakeMedium:data(_)
+	return ""
+end
+
 M.StringMedium = U.class(M.StringMedium)
 
 function M.StringMedium:__init(data)
@@ -493,8 +514,7 @@ end
 
 function M.output(source, destination, data, context)
 	source = U.type_assert(source, "string", true) or "<generated>"
-	U.type_assert(destination, "string")
-	U.assert(#destination > 0, "destination is empty")
+	destination = U.type_assert(destination, "string", true) or ""
 
 	local o = {
 		source = source,
@@ -518,8 +538,10 @@ function M.output(source, destination, data, context)
 	U.type_assert(o.medium.replace, "function")
 	U.type_assert(o.medium.data, "function")
 
+	U.assert(U.is_type(o.medium, M.FakeMedium) or #destination > 0, "destination is empty")
+
 	M.context.any_output = true
-	local prev = M.context.output[o.destination]
+	local prev = M.context.output[o.destination] or M.context.output_by_source[o.source]
 	if prev then
 		if o.source ~= prev.source then
 			M.log(
@@ -689,11 +711,13 @@ function M.build_to_filesystem()
 		M.log("no output files")
 	end
 	for _, o in pairs(M.context.output) do
-		local dir = FS.path_dir(o.destination)
-		if dir ~= "" and not M.create_path(M.path(M.config.build_path, dir)) then
-			M.error("failed to create destination directory: %s", o.destination)
+		if #o.destination > 0 then
+			local dir = FS.path_dir(o.destination)
+			if dir ~= "" and not M.create_path(M.path(M.config.build_path, dir)) then
+				M.error("failed to create destination directory: %s", o.destination)
+			end
+			o.medium:write(o.source, M.path(M.config.build_path, o.destination), o.context)
 		end
-		o.medium:write(o.source, M.path(M.config.build_path, o.destination), o.context)
 	end
 
 	M.log("build complete")
