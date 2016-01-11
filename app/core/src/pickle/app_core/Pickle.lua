@@ -234,7 +234,7 @@ end
 function M.replace_fields(to, from)
 	for k, v in pairs(from) do
 		local c = to[k]
-		if U.is_class(c) and U.is_type(c.replace, "function") then
+		if U.is_instance(c) and U.is_type(c.replace, "function") then
 			c:replace(v)
 		else
 			to[k] = v
@@ -339,10 +339,11 @@ function M.Template:__init(path, data, layout)
 end
 
 local function do_tpl_call(env, func, context)
-	if not U.is_class(context) then
-		U.type_assert(context, "table", true)
+	if context ~= nil then
+		U.assert(type(context) == "table")
+	else
+		context = {}
 	end
-	context = context or {}
 	rawset(env, "C", context)
 	local result = func()
 	rawset(env, "C", nil)
@@ -453,7 +454,7 @@ M.FakeMedium = U.class(M.FakeMedium)
 
 function M.FakeMedium:__init(proxy)
 	self.proxy = proxy
-	U.assert(self.proxy == nil or U.is_class(self.proxy))
+	U.assert(self.proxy == nil or U.is_instance(self.proxy))
 end
 
 function M.FakeMedium:write(_, _, _)
@@ -541,7 +542,7 @@ function M.output(source, destination, data, context)
 		o.medium = M.StringMedium(data)
 	elseif U.is_type(data, "function") then
 		o.medium = M.FunctionMedium(data)
-	elseif U.is_class(data) then
+	elseif U.is_instance(data) then
 		o.medium = data
 	else
 		M.error("data must be a function, string, or class instance")
