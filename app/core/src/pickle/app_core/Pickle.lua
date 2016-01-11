@@ -328,6 +328,9 @@ function M.Template:__init(path, data, layout)
 end
 
 local function do_tpl_call(env, func, context)
+	if not U.is_class(context) then
+		U.type_assert(context, "table", true)
+	end
 	context = context or {}
 	rawset(env, "C", context)
 	local result = func()
@@ -336,16 +339,10 @@ local function do_tpl_call(env, func, context)
 end
 
 function M.Template:prelude(context)
-	if not U.type_class(context) then
-		U.type_assert(context, "table", true)
-	end
 	return do_tpl_call(self.env, self.prelude_func, context)
 end
 
 function M.Template:content(context)
-	if not U.type_class(context) then
-		U.type_assert(context, "table", true)
-	end
 	local content = do_tpl_call(self.env, self.content_func, context)
 	if self.layout then
 		content = self.layout:content(setmetatable({
@@ -445,7 +442,7 @@ M.FakeMedium = U.class(M.FakeMedium)
 
 function M.FakeMedium:__init(proxy)
 	self.proxy = proxy
-	U.assert(self.proxy == nil or U.is_type(U.type_class(self.proxy), "table"))
+	U.assert(self.proxy == nil or U.is_class(self.proxy))
 end
 
 function M.FakeMedium:write(_, _, _)
@@ -529,7 +526,7 @@ function M.output(source, destination, data, context)
 		o.medium = M.StringMedium(data)
 	elseif U.is_type(data, "function") then
 		o.medium = M.FunctionMedium(data)
-	elseif U.type_class(data) ~= nil then
+	elseif U.is_class(data) then
 		o.medium = data
 	else
 		M.error("data must be a function, string, or class instance")
