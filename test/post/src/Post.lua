@@ -6,36 +6,47 @@ local M = U.module("Post")
 
 U.class(M)
 
-M.posts = {}
 
 local tpl_layout = P.Template(nil, [[
-<h1>{{ title }}</h1>
+<html>
+<head>
+	<title>{{ title }}</title>
+</head>
 
-{! content !}
+<body>
+	<h1>{{ title }}</h1>
+
+	{! content !}
+</body>
+</html>
 ]])
 
 local prelude_vf = P.ValueFilter("Post")
+:filter("url", "string")
 :filter("title", "string")
 
 function M:__init(source, file, destination)
 	source = P.path(source, file)
-	self.url = P.path("post", file)
 	self.template = P.Template(source, nil, tpl_layout)
 
-	local prelude_data = {}
-	self.template:prelude(prelude_data)
-	prelude_vf:consume(self, prelude_data)
+	local prelude = {
+		url = P.path("post", file),
+		title = "",
+	}
+	self.template:prelude(prelude)
+	prelude_vf:consume(self, prelude)
 
 	P.output(source, P.path(destination, self.url), self, self)
-	M.posts[source] = self
 end
 
 function M:write(source, destination, _)
 	return self.template:write(source, destination, self)
 end
 
-function M:replace(o, prev)
-	M.posts[o.source] = self
+function M:replace(repl, o, op)
+	self.url = repl.url
+	self.title = repl.title
+	self.template:replace(repl.template)
 	return true
 end
 
