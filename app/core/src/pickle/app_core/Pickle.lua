@@ -62,7 +62,7 @@ function M.ValueFilter:__init(name)
 end
 
 local function make_value_filter(tc, func)
-	U.type_assert_any(tc, {"string", "table"}, true)
+	U.type_assert_any(tc, {"string", "table", tc}, true)
 	U.type_assert(func, "function", true)
 	return function(name, state, value)
 		if tc then
