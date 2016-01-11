@@ -272,7 +272,6 @@ static void server_log(char const* msg) {
 static signed server_dispatch(mmw_con* connection, void* userdata) {
 	auto& server = *static_cast<Server*>(userdata);
 	auto const& r = connection->request;
-	// TOGO_LOGF("dispatch: %s %s\n", r.method, r.uri);
 	if (!string::compare_equal(StringRef{r.method, cstr_tag{}}, "GET")) {
 		return 1;
 	}

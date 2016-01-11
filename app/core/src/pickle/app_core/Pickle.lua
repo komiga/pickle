@@ -293,7 +293,7 @@ function M.Template:__init(path, data, layout)
 	local csep, csep_end = string.find(data, "---content---\n", 1, true)
 	if csep ~= nil and (csep == 1 or string.byte(data, csep - 1, csep - 1) == BYTE_NEWLINE) then
 		local prelude_data = string.sub(data, 1, U.max(0, csep - 1))
-		M.log_debug("template prelude: %s:\n`%s`", path, prelude_data)
+		-- M.log_debug("template prelude: %s:\n`%s`", path, prelude_data)
 		func, err = load(prelude_data, "@" .. path, "t", setmetatable(self.env, chunk_metatable))
 		if err then
 			M.error("failed to read prelude as Lua: %s", err)
@@ -307,7 +307,7 @@ function M.Template:__init(path, data, layout)
 	if err then
 		M.error("syntax error in template: %s:%d:%d: %s", path, row, col, err)
 	end
-	M.log_debug("template content: %s:\n`%s`", path, data)
+	-- M.log_debug("template content: %s:\n`%s`", path, data)
 	func, err = load(data, "@" .. path, "t", setmetatable(self.env, chunk_metatable))
 	if err then
 		M.error("failed to read transformed template as Lua: %s", err)
