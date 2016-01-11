@@ -203,8 +203,15 @@ end
 
 function M.create_path(path)
 	if not FS.is_directory(path) then
+		local dirs = {}
 		for path in path_dir_iter(path) do
-			if not FS.create_directory(path, true) then
+			if FS.is_directory(path) then
+				break
+			end
+			table.insert(dirs, path)
+		end
+		for i = #dirs, 1, -1 do
+			if not FS.create_directory(dirs[i], true) then
 				return false
 			end
 		end
