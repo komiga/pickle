@@ -64,9 +64,14 @@ end
 local function make_value_filter(tc, func)
 	U.type_assert_any(tc, {"string", "table", tc}, true)
 	U.type_assert(func, "function", true)
+	if tc then
+		if not U.is_type(tc, "table") then
+			tc = {tc}
+		end
+	end
 	return function(name, state, value)
 		if tc then
-			U.type_assert(value, tc)
+			U.type_assert_any(value, tc)
 		end
 		if func then
 			local err
