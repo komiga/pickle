@@ -376,13 +376,15 @@ function M.Template:write(source, destination, context)
 	end
 end
 
-function M.Template:replace(o, prev)
-	prev.path = self.path
-	prev.layout = self.layout
-	prev.env = self.env
-	prev.prelude_func = self.prelude_func
-	prev.content_func = self.content_func
-	M.add_template_cache(self)
+function M.Template:replace(repl, _, _)
+	local cached = M.context.template_cache[self.path] ~= nil
+	if cached then
+		M.context.template_cache[self.path] = nil
+	end
+	M.replace_fields(self, repl)
+	if cached then
+		M.add_template_cache(self)
+	end
 	return true
 end
 
@@ -457,9 +459,9 @@ end
 function M.FakeMedium:write(_, _, _)
 end
 
-function M.FakeMedium:replace(o, prev)
+function M.FakeMedium:replace(repl, o, op)
 	if self.proxy and self.proxy.replace then
-		return self.proxy:replace(o, prev)
+		return self.proxy:replace(repl.proxy, o, op)
 	end
 	return true
 end
@@ -482,8 +484,12 @@ function M.StringMedium:write(source, destination, _)
 	end
 end
 
-function M.StringMedium:replace(o, prev)
-	return prev.medium.str ~= self.str
+function M.StringMedium:replace(repl, _, _)
+	if self.str ~= repl.str then
+		self.str = repl.str
+		return true
+	end
+	return false
 end
 
 function M.StringMedium:data(_)
@@ -506,8 +512,8 @@ function M.FileMedium:write(source, destination, _)
 	end
 end
 
-function M.FileMedium:replace(o, prev)
-	return o.last_modified ~= prev.last_modified
+function M.FileMedium:replace(_, o, op)
+	return o.last_modified ~= op.last_modified
 end
 
 function M.FileMedium:data(o)
@@ -547,24 +553,31 @@ function M.output(source, destination, data, context)
 	U.assert(U.is_type(o.medium, M.FakeMedium) or #destination > 0, "destination is empty")
 
 	M.context.any_output = true
-	local prev = M.context.output[o.destination] or M.context.output_by_source[o.source]
-	if prev then
-		if o.source ~= prev.source then
+	local op = M.context.output[o.destination] or M.context.output_by_source[o.source]
+	if op then
+		if o.source ~= op.source then
 			M.log(
 				"output clobbered:\n%s -> %s\nreplaced by\n%s -> %s",
-				prev.source, prev.destination,
+				op.source, op.destination,
 				o.source, o.destination
 			)
 		end
-		if not o.medium:replace(o, prev) then
-			return false
+		if U.type_class(o.medium) == U.type_class(op.medium) then
+			if not op.medium:replace(o.medium, o, op) then
+				return false
+			end
+			o.medium = op.medium
 		end
-		prev.medium = nil
-		prev.context = nil
-		prev.data_cached = nil
+		op.medium = nil
+		op.context = nil
+		op.data_cached = nil
+		M.context.output[op.destination] = nil
+		M.context.output_by_source[op.source] = nil
 	end
-	M.context.output[o.destination] = o
-	if o.source ~= "<generated>" then
+	if #o.destination > 0 then
+		M.context.output[o.destination] = o
+	end
+	if #o.source > 0 and o.source ~= "<generated>" then
 		M.context.output_by_source[o.source] = o
 	end
 	return true
