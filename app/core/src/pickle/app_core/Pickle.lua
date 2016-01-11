@@ -231,6 +231,17 @@ local function casual_file_same(a, b)
 	return false
 end
 
+function M.replace_fields(to, from)
+	for k, v in pairs(from) do
+		local c = to[k]
+		if U.is_class(c) and U.is_type(c.replace, "function") then
+			c:replace(v)
+		else
+			to[k] = v
+		end
+	end
+end
+
 M.Template = U.class(M.Template)
 
 local function make_subs(repl_pairs)
