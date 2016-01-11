@@ -143,7 +143,7 @@ local config_vf = M.ValueFilter("PickleConfig")
 	if U.is_type(value, "number") and value >= M.LogLevel.info and value <= M.LogLevel.debug then
 		return value
 	end
-	M.error("config.log_level is invalid: %s", tostring(value))
+	return nil, string.format("config.log_level is invalid: %s", tostring(value))
 end)
 :filter("force_overwrite", "boolean")
 :filter("build_path", "string", function(_, value)
