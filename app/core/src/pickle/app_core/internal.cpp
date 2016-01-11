@@ -271,26 +271,42 @@ static void server_log(char const* msg) {
 
 static signed server_dispatch(mmw_con* connection, void* userdata) {
 	auto& server = *static_cast<Server*>(userdata);
+	auto* L = server.L;
 	auto const& r = connection->request;
 	if (!string::compare_equal(StringRef{r.method, cstr_tag{}}, "GET")) {
 		return 1;
 	}
-	lua_pushvalue(server.L, 2);
-	lua::push_value(server.L, StringRef{r.uri, cstr_tag{}});
-	lua_call(server.L, 1, 2);
+	lua_pushvalue(L, 2);
+	lua::push_value(L, StringRef{r.uri, cstr_tag{}});
+	lua_call(L, 1, 3);
 
 	StringRef data;
 	signed status_code = 200;
-	if (lua_type(server.L, -2) == LUA_TNIL) {
+	if (lua_type(L, -3) == LUA_TNIL) {
 		status_code = 404;
 		data = "<html><head><title>404 - URL not found</title></head><body><h1>404 - URL not found</h1></body></html>";
 	} else {
-		data = lua::get_string(server.L, -2);
+		data = lua::get_string(L, -3);
 	}
-	if (lua_type(server.L, -1) != LUA_TNIL) {
-		status_code = lua::get_integer(server.L, -1);
+	if (lua_type(L, -2) != LUA_TNIL) {
+		status_code = lua::get_integer(L, -2);
 	}
-	mmw_response_begin(connection, status_code, data.size, nullptr, 0);
+	FixedArray<mmw_header, 16> headers{};
+	if (lua_type(L, -1) != LUA_TNIL) {
+		luaL_checktype(L, -1, LUA_TTABLE);
+		lua::push_value(L, null_tag{});
+		while (lua_next(L, -2) != 0) {
+			fixed_array::push_back(headers, {
+				lua::get_string(L, -2).data,
+				lua::get_string(L, -1).data
+			});
+			lua_pop(L, 1);
+		}
+	}
+	mmw_response_begin(
+		connection, status_code, data.size,
+		begin(headers), fixed_array::size(headers)
+	);
 	mmw_write(connection, data.data, data.size);
 	mmw_response_end(connection);
 	lua_pop(server.L, 2);
