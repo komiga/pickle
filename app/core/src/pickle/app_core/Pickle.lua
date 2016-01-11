@@ -392,15 +392,13 @@ function M.add_template_cache(tpl, name)
 end
 
 function M.get_template(name)
-	if name == "" or name == "<generated>" then
-		name = nil
+	if name == nil or name == "" or name == "<generated>" then
+		M.error("invalid template name: '%s'", name)
 	end
-	local tpl
 	if U.is_type(name, M.Template) then
-		tpl = name
-	elseif name ~= nil then
-		tpl = M.context.template_cache[name]
+		return name
 	end
+	local tpl = M.context.template_cache[name]
 	if not tpl then
 		tpl = M.Template(name)
 		M.add_template_cache(tpl, name)
