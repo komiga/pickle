@@ -278,29 +278,35 @@ function(opts, params)
 	P.log("server started: http://%s:%d/", config.addr, config.port)
 
 	local function handler(given_uri)
-		if #given_uri > 1 and string.sub(given_uri, 1, 1) == '/' then
-			given_uri = string.sub(given_uri, 2, -1)
-		end
 		local uri = given_uri
 		if string.sub(uri, -1, -1) == '/' then
-			uri = P.path(uri, "index.html")
+			uri = P.path(given_uri, "index.html")
+		end
+		if #uri > 1 and string.sub(uri, 1, 1) == '/' then
+			uri = string.sub(uri, 2, -1)
 		end
 		local o = P.context.output[uri]
-		local data = o and o.data_cached
-		local status_code = (data ~= nil) and 200 or 404
-		if not data then
-			o = P.context.output["404.html"]
-			data = o and o.data_cached
+		if not o and not U.file_extension(uri) then
+			uri = P.path(uri, "index.html")
+			o = P.context.output[uri]
 		end
+		local status_code = (o ~= nil) and 200 or 404
+		local headers = {}
+		if status_code == 404 then
+			o = P.context.output["404.html"]
+			if o then
+				uri = "404.html"
+			end
+		end
+		headers["Content-Type"] = content_types[U.file_extension(uri)] or "text/plain"
+
 		P.log_chatter(
 			"GET %s%s => %s",
 			given_uri,
-			uri ~= given_uri and string.format(" => %s", uri) or "",
+			('/' .. uri) ~= given_uri and string.format(" => %s", uri) or "",
 			status_code
 		)
-		local headers = {}
-		headers["Content-Type"] = content_types[U.file_extension(uri)] or "text/plain"
-		return data, status_code, headers
+		return o.data_cached, status_code, headers
 	end
 
 	local signal_received = false
