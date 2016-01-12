@@ -81,7 +81,9 @@ local function make_value_filter(tc, func)
 				return err
 			end
 		end
-		state[name] = value
+		if state then
+			state[name] = value
+		end
 		return true
 	end
 end
@@ -110,6 +112,7 @@ function M.ValueFilter:transform(func)
 end
 
 function M.ValueFilter:consume_safe(state, input)
+	U.assert(state == nil or type(state) == "table")
 	for key, value in pairs(input) do
 		if self.transformer then
 			key, value = self.transformer(key, value)
