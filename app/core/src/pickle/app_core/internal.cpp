@@ -28,6 +28,9 @@
 
 #pragma GCC diagnostic pop
 
+#include <cerrno>
+#include <cstring>
+
 namespace pickle {
 
 namespace {
@@ -373,9 +376,15 @@ signed internal::li_make_server(lua_State* L) {
 	mmw_size size;
 	mmw_server_init(&server.s, &server.c, &size);
 	server.data = memory::default_allocator().allocate(size);
-	mmw_server_start(&server.s, server.data);
+	if (mmw_server_start(&server.s, server.data) == 0) {
+		lua::push_value(L, null_tag{});
+	} else {
+		lua_pop(L, 1);
+		lua::push_value(L, null_tag{});
+		lua::push_value(L, StringRef{std::strerror(errno), cstr_tag{}});
+	}
 	server.c.address = nullptr;
-	return 1;
+	return 2;
 }
 
 namespace {
