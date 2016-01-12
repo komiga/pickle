@@ -109,16 +109,10 @@ end
 local base_opt_vf = P.ValueFilter("Interface")
 :transform(vf_opt_transform)
 :filter("--log", "string", function(_, value)
-	local log_level = P.LogLevel[value]
-	if log_level == nil then
-		return nil, "invalid value"
-	end
-	P.configure_default{log_level = log_level}
-	return nil, true
+	return nil, P.configure_default({log_level = P.LogLevel[value]}, true)
 end)
 :filter({"--force-overwrite", "-f"}, "boolean", function(_, value)
-	P.configure_default{force_overwrite = value}
-	return nil, true
+	return nil, P.configure_default({force_overwrite = value}, true)
 end)
 
 make_command(M.command,
@@ -173,25 +167,23 @@ function(opts, params)
 end)
 
 local server_vf = P.ValueFilter("ServerCommand")
-:transform(function(name, value)
-	name, value = vf_opt_transform(name, value)
-	local b = find_last(name, BYTE_DASH) or 0
-	return string.sub(name, b + 1), value
-end)
-:filter("addr", "string")
-:filter("delay", "string", function(_, value)
-	local delay = tonumber(value)
-	if delay == nil then
+:transform(vf_opt_transform)
+:filter("--delay", "string", function(_, value)
+	value = tonumber(value)
+	if value == nil then
 		return nil, "expected an integer"
 	end
-	return math.floor(delay)
+	return nil, P.configure_default({delay = value}, true)
 end)
-:filter("port", "string", function(_, value)
-	local port = tonumber(value)
-	if port == nil or port < 0 or port > 0xFFFF then
-		return nil, "expected an integer in [0, 0xFFFF]"
+:filter("--addr", "string", function(_, value)
+	return nil, P.configure_default({addr = value}, true)
+end)
+:filter("--port", "string", function(_, value)
+	value = tonumber(value)
+	if value == nil then
+		return nil, "expected an integer"
 	end
-	return port
+	return nil, P.configure_default({port = value}, true)
 end)
 
 local content_types = {}
@@ -210,7 +202,6 @@ do
 	add_content_type("image", "bmp")
 	add_content_type("image", "ico")
 end
-
 
 make_command(M.command,
 "server", [[
@@ -235,12 +226,7 @@ function(opts, params)
 		P.log("error: build: expected a single path")
 		return false
 	end
-	local config = {
-		delay = 1,
-		addr = "127.0.0.1",
-		port = 4000,
-	}
-	local err = server_vf:consume_safe(config, opts)
+	local err = server_vf:consume_safe(nil, opts)
 	if err then
 		P.log("error: %s", err)
 		return false
@@ -271,12 +257,16 @@ function(opts, params)
 		return false
 	end
 
-	local server = Internal.make_server(
-		config.addr,
-		config.port,
+	local server, err = Internal.make_server(
+		P.config.addr,
+		P.config.port,
 		P.config.log_level >= P.LogLevel.debug
 	)
-	P.log("server started: http://%s:%d/", config.addr, config.port)
+	if err then
+		P.log("error: failed to start server: %s", err)
+		return false
+	end
+	P.log("server started: http://%s:%d/", P.config.addr, P.config.port)
 
 	local function handler(given_uri)
 		local uri = given_uri
@@ -321,10 +311,10 @@ function(opts, params)
 		signal_received = true
 	end)
 	repeat
-		if config.delay > 0 then
+		if P.config.delay > 0 then
 			now = S.secs_since_epoch()
-			if now - last_collect > config.delay then
-				P.log_debug("checking for changes")
+			if now - last_collect > P.config.delay then
+				P.log_debug("looking for changes")
 				if not reload_main() then
 					return false
 				end
@@ -332,6 +322,7 @@ function(opts, params)
 					FS.set_working_dir(dir)
 				end
 				if P.collect(true) > 0 then
+					P.log_chatter("rebuilding all")
 					P.build_to_cache(true)
 				end
 				last_collect = S.secs_since_epoch()

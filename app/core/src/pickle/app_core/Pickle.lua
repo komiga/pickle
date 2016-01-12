@@ -17,6 +17,9 @@ M.config_default = {
 	force_overwrite = false,
 	build_path = "public",
 	testing_mode = false,
+	delay = 1,
+	addr = "127.0.0.1",
+	port = 4000,
 }
 M.config = nil
 M.context = nil
@@ -141,28 +144,40 @@ end
 
 local config_vf = M.ValueFilter("PickleConfig")
 :filter("log_level", nil, function(_, value)
+	local given = value
 	if U.is_type(value, "string") then
 		value = M.LogLevel[value]
 	end
 	if U.is_type(value, "number") and value >= M.LogLevel.info and value <= M.LogLevel.debug then
 		return value
 	end
-	return nil, string.format("config.log_level is invalid: %s", tostring(value))
+	return nil, string.format("config.log_level is invalid: %s", tostring(given))
 end)
 :filter("force_overwrite", "boolean")
 :filter("testing_mode", "boolean")
+:filter("delay", "number", function(_, value)
+	return U.max(0, math.floor(value))
+end)
+:filter("addr", "string")
+:filter("port", "number", function(_, value)
+	if value < 0 or value > 0xFFFF then
+		return nil, "expected an integer in [0, 0xFFFF]"
+	end
+	return value
+end)
 :filter("build_path", "string", function(_, value)
 	return value
 	-- return FS.trim_trailing_slashes(value)
 end)
 
-function M.configure(config)
-	config_vf:consume(M.config, config)
+function M.configure(config, safe)
+	local func = safe and config_vf.consume_safe or config_vf.consume
+	return func(config_vf, M.config, config)
 end
 
-function M.configure_default(config)
-	config_vf:consume(M.config_default, config)
-	M.configure(config)
+function M.configure_default(config, safe)
+	local func = safe and config_vf.consume_safe or config_vf.consume
+	return func(config_vf, M.config_default, config) or M.configure(config)
 end
 
 function M.init()
