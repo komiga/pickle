@@ -16,6 +16,7 @@ M.config_default = {
 	log_level = M.LogLevel.info,
 	force_overwrite = false,
 	build_path = "public",
+	testing_mode = false,
 }
 M.config = nil
 M.context = nil
@@ -146,6 +147,7 @@ local config_vf = M.ValueFilter("PickleConfig")
 	return nil, string.format("config.log_level is invalid: %s", tostring(value))
 end)
 :filter("force_overwrite", "boolean")
+:filter("testing_mode", "boolean")
 :filter("build_path", "string", function(_, value)
 	return value
 	-- return FS.trim_trailing_slashes(value)

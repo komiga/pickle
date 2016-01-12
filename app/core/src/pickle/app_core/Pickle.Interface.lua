@@ -246,6 +246,7 @@ function(opts, params)
 		return false
 	end
 
+	P.configure_default{testing_mode = true}
 	local main_path = script_path(params[1].value)
 	local main_last_modified = 0
 	local function reload_main()
