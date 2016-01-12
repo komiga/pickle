@@ -182,6 +182,10 @@ static bool transformer_block(Transformer& t) {
 			TX_OUT(")\n");
 			goto l_block_end;
 
+		case '#':
+			TX_FIND_BLOCK_TAIL("#}");
+			goto l_block_end;
+
 		l_block_end:
 			t.prev = t.end + 2;
 			t.start = t.prev;
