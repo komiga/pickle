@@ -356,6 +356,9 @@ function M.Template:__init(path, data, layout)
 		M.error("failed to read transformed template as Lua: %s", err)
 	end
 	self.content_func = func
+	if path ~= "<generated>" then
+		M.add_template_cache(self)
+	end
 end
 
 local function do_tpl_call(env, func, context)
@@ -403,7 +406,7 @@ function M.Template:replace(repl, _, _)
 		M.context.template_cache[self.path] = nil
 	end
 	M.replace_fields(self, repl)
-	if cached then
+	if cached and path ~= "<generated>" then
 		M.add_template_cache(self)
 	end
 	return true
@@ -548,6 +551,8 @@ end
 function M.output(source, destination, data, context)
 	source = U.type_assert(source, "string", true) or "<generated>"
 	destination = U.type_assert(destination, "string", true) or ""
+	U.assert(#source > 0, "source is empty")
+	U.assert(U.is_instance(data, M.FakeMedium) or #destination > 0, "destination is empty")
 
 	local o = {
 		source = source,
@@ -570,8 +575,6 @@ function M.output(source, destination, data, context)
 	U.type_assert(o.medium.write, "function")
 	U.type_assert(o.medium.replace, "function")
 	U.type_assert(o.medium.data, "function")
-
-	U.assert(U.is_type(o.medium, M.FakeMedium) or #destination > 0, "destination is empty")
 
 	M.context.any_output = true
 	local op = M.context.output[o.destination] or M.context.output_by_source[o.source]
@@ -598,7 +601,7 @@ function M.output(source, destination, data, context)
 	if #o.destination > 0 then
 		M.context.output[o.destination] = o
 	end
-	if #o.source > 0 and o.source ~= "<generated>" then
+	if o.source ~= "<generated>" then
 		M.context.output_by_source[o.source] = o
 	end
 	return true
@@ -626,6 +629,7 @@ function M.collect(cache)
 			if last_modified == o.last_modified then
 				return
 			end
+			M.log("changed: %s%s", o.source, #o.destination > 0 and (" -> " .. o.destination) or "")
 		end
 		-- don't retry generation filters
 		if f.processed and source == nil then
@@ -669,7 +673,7 @@ function M.build_to_cache(all)
 
 	for _, o in pairs(M.context.output) do
 		if all or not o.data_cached then
-			if not M.context.built or not o.data_cached then
+			if not M.context.built then
 				M.log("cache: %s -> %s", o.source, o.destination)
 			end
 			o.data_cached = o.medium:data(o)
