@@ -114,15 +114,23 @@ function M.ValueFilter:transform(func)
 	return self
 end
 
-function M.ValueFilter:consume_safe(state, input)
+function M.ValueFilter:consume_safe(state, input, fallback)
+	U.type_assert(fallback, M.ValueFilter, true)
 	U.assert(state == nil or type(state) == "table")
 	for key, value in pairs(input) do
 		if self.transformer then
 			key, value = self.transformer(key, value)
 		end
 		local filter = self.filters[key] or self.default_filter
-		local err = not filter and "no matching filter" or false
-		err = err or filter(key, state, value)
+		if not filter and fallback then
+			filter = fallback.filters[key] or fallback.default_filter
+		end
+		local err
+		if filter then
+			err = filter(key, state, value)
+		else
+			err = "no matching filter"
+		end
 		if err ~= true then
 			return string.format(
 				"%s: filter '%s' <= '%s' (of type %s): %s",
@@ -135,8 +143,8 @@ function M.ValueFilter:consume_safe(state, input)
 	return nil
 end
 
-function M.ValueFilter:consume(state, input)
-	local err = self:consume_safe(state, input)
+function M.ValueFilter:consume(state, input, fallback)
+	local err = self:consume_safe(state, input, fallback)
 	if err then
 		M.error(err)
 	end
