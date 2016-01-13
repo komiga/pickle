@@ -338,7 +338,7 @@ function M.Template:__init(path, data, layout)
 		-- M.log_debug("template prelude: %s:\n`%s`", path, prelude_data)
 		func, err = load(prelude_data, "@" .. path, "t", setmetatable(self.env, chunk_metatable))
 		if err then
-			M.error("failed to read prelude as Lua: %s", err)
+			M.error("failed to read prelude as Lua:\n%s", err)
 		end
 		self.prelude_func = func
 		data = string.sub(data, U.min(#data, csep_end + 1), -1)
@@ -352,7 +352,7 @@ function M.Template:__init(path, data, layout)
 	-- M.log_debug("template content: %s:\n`%s`", path, data)
 	func, err = load(data, "@" .. path, "t", setmetatable(self.env, chunk_metatable))
 	if err then
-		M.error("failed to read transformed template as Lua: %s", err)
+		M.error("failed to read transformed template as Lua:\n%s", err)
 	end
 	self.content_func = func
 	if path ~= "<generated>" then
