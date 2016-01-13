@@ -555,7 +555,7 @@ function M.output(source, destination, data, context)
 
 	local o = {
 		source = source,
-		destination = destination,
+		destination = U.trim_leading_slashes(destination),
 		medium = nil,
 		context = context,
 		data_cached = nil,
