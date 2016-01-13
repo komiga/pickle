@@ -373,11 +373,6 @@ function M.Template:__init(path, data, layout)
 end
 
 local function do_tpl_call(env, func, context)
-	if context ~= nil then
-		U.assert(type(context) == "table")
-	else
-		context = {}
-	end
 	rawset(env, "C", context)
 	local result = func()
 	rawset(env, "C", nil)
@@ -385,10 +380,20 @@ local function do_tpl_call(env, func, context)
 end
 
 function M.Template:prelude(context)
+	if context ~= nil then
+		U.assert(type(context) == "table")
+	else
+		context = {}
+	end
 	return do_tpl_call(self.env, self.prelude_func, context)
 end
 
 function M.Template:content(context)
+	if context ~= nil then
+		U.assert(type(context) == "table")
+	else
+		context = {}
+	end
 	local content = do_tpl_call(self.env, self.content_func, context)
 	if self.layout then
 		content = self.layout:content(setmetatable({
@@ -405,7 +410,7 @@ end
 
 function M.Template:write(source, destination, context)
 	M.log_chatter("template: %s -> %s", source, destination)
-	local data = self:content(context or {})
+	local data = self:content(context)
 	if not IO.write_file(destination, data) then
 		M.error_output("failed to write file", source, destination)
 	end
@@ -424,7 +429,7 @@ function M.Template:replace(repl, _, _)
 end
 
 function M.Template:data(o)
-	return self:content(o.context or {})
+	return self:content(o.context)
 end
 
 function M.add_template_cache(tpl, name)
