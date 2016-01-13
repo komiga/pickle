@@ -279,9 +279,7 @@ function(opts, params)
 		if string.sub(uri, -1, -1) == '/' then
 			uri = P.path(given_uri, "index.html")
 		end
-		if #uri > 1 and string.sub(uri, 1, 1) == '/' then
-			uri = string.sub(uri, 2, -1)
-		end
+		uri = U.trim_leading_slashes(uri)
 		local o = P.context.output[uri]
 		if not o and not U.file_extension(uri) then
 			uri = P.path(uri, "index.html")
