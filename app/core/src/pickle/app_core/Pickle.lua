@@ -166,8 +166,7 @@ end)
 	return value
 end)
 :filter("build_path", "string", function(_, value)
-	return value
-	-- return FS.trim_trailing_slashes(value)
+	return U.trim_trailing_slashes(value)
 end)
 
 function M.configure(config, safe)
