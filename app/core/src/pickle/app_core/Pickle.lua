@@ -200,8 +200,8 @@ function M.path(...)
 	for i, p in pairs(parts) do
 		if p ~= nil and p ~= "" then
 			U.type_assert(p, "string")
-			path = path .. p
-			if i ~= #parts and string.byte(p, -1) ~= BYTE_SLASH then
+			path = path .. U.trim_slashes(p)
+			if i ~= #parts and string.byte(path, -1) ~= BYTE_SLASH then
 				path = path .. "/"
 			end
 		end
