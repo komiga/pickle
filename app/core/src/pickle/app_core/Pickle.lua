@@ -66,7 +66,9 @@ function M.ValueFilter:__init(name)
 end
 
 local function make_value_filter(tc, func)
-	U.type_assert_any(tc, {"string", "table", tc}, true)
+	if not U.is_instance(tc) then
+		U.type_assert_any(tc, {"string", "table"}, true)
+	end
 	U.type_assert(func, "function", true)
 	if tc then
 		if not U.is_type(tc, "table") then
