@@ -196,6 +196,7 @@ function M.init()
 		built = false,
 		template_cache = {},
 		filters = {},
+		post_collect = {},
 		output = {},
 		output_by_source = {},
 		any_output = false,
@@ -453,6 +454,7 @@ function M.get_template(name)
 	return tpl
 end
 
+-- (filter)
 -- (source, filter)
 -- (source, destination, filter)
 function M.filter(a, b, c)
@@ -481,6 +483,11 @@ function M.filter(a, b, c)
 		filter = filter,
 		processed = false,
 	})
+end
+
+function M.post_collect(func)
+	U.assert(U.is_type(func, "function") or U.is_functable(func))
+	table.insert(M.context.post_collect, func)
 end
 
 M.FakeMedium = U.class(M.FakeMedium)
@@ -675,6 +682,13 @@ function M.collect(cache)
 	end
 
 	M.context.collected = true
+
+	if num_accepted > 0 then
+		U.log("post_collect")
+		for _, f in ipairs(M.context.post_collect) do
+			f()
+		end
+	end
 	return num_accepted
 end
 
