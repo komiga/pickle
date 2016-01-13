@@ -201,6 +201,10 @@ do
 	add_content_type("image", "gif")
 	add_content_type("image", "bmp")
 	add_content_type("image", "ico")
+
+	add_content_type("application", "woff", "font-woff")
+	add_content_type("application", "otf", "font-sfnt")
+	add_content_type("application", "ttf", "font-sfnt")
 end
 
 make_command(M.command,
