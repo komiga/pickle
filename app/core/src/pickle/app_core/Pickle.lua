@@ -684,7 +684,6 @@ function M.collect(cache)
 	M.context.collected = true
 
 	if num_accepted > 0 then
-		U.log("post_collect")
 		for _, f in ipairs(M.context.post_collect) do
 			f()
 		end
