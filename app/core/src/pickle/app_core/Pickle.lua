@@ -201,13 +201,10 @@ function M.path(...)
 		if p ~= nil and p ~= "" then
 			U.type_assert(p, "string")
 			path = path .. U.trim_slashes(p)
-			if i ~= #parts and string.byte(p, -1) ~= BYTE_SLASH then
+			if i ~= #parts then
 				path = path .. "/"
 			end
 		end
-	end
-	if string.byte(path, -1) == BYTE_SLASH then
-		path = string.sub(path, 1, -2)
 	end
 	return path
 end
