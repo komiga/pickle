@@ -217,7 +217,7 @@ local function path_dir_iter_func(init_path, path)
 	if path == nil then
 		return init_path
 	end
-	path = FS.path_dir(path)
+	path = U.path_dir(path)
 	return path ~= "" and path or nil
 end
 
@@ -712,7 +712,7 @@ function M.build_to_filesystem()
 
 		if name ~= "" then
 			-- if already a dir, this will remove a trailing slash
-			name = FS.path_dir(name)
+			name = U.path_dir(name)
 			for i, dir in pairs(check_stale_dirs) do
 				local min = U.min(#name, #dir)
 				local max = U.max(#name, #dir)
@@ -760,7 +760,7 @@ function M.build_to_filesystem()
 	end
 	for _, o in pairs(M.context.output) do
 		if #o.destination > 0 then
-			local dir = FS.path_dir(o.destination)
+			local dir = U.path_dir(o.destination)
 			if dir ~= "" and not M.create_path(M.path(M.config.build_path, dir)) then
 				M.error("failed to create destination directory: %s", o.destination)
 			end

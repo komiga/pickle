@@ -75,7 +75,7 @@ local function do_script(paths, command_func)
 			return false
 		end
 
-		local dir = FS.path_dir(path)
+		local dir = U.path_dir(path)
 		if dir ~= "" then
 			FS.set_working_dir(dir)
 		end
@@ -301,7 +301,7 @@ function(opts, params)
 	end
 
 	local signal_received = false
-	local dir = FS.path_dir(main_path)
+	local dir = U.path_dir(main_path)
 	local wp_orig = FS.working_dir()
 	local now
 	local last_collect = S.secs_since_epoch()
