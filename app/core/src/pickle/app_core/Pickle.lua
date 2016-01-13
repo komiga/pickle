@@ -698,7 +698,7 @@ function M.build_to_cache(all)
 	for _, o in pairs(M.context.output) do
 		if all or not o.data_cached then
 			if not M.context.built then
-				M.log("cache: %s -> %s", o.source, o.destination)
+				M.log_chatter("cache: %s -> %s", o.source, o.destination)
 			end
 			o.data_cached = o.medium:data(o)
 		end
