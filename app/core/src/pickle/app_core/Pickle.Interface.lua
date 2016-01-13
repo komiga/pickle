@@ -193,6 +193,8 @@ do
 	end
 	add_content_type("text", "css")
 	add_content_type("text", "html")
+	add_content_type("text", "xml")
+	add_content_type("text", "js", "javascript")
 
 	add_content_type("image", "svg", "svg+xml")
 	add_content_type("image", "png")
