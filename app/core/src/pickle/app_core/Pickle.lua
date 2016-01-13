@@ -695,6 +695,10 @@ function M.build_to_filesystem()
 	M.log_chatter("removing stale build data")
 	local check_stale_dirs = {}
 	for name, entry_type in FS.iterate_dir(M.config.build_path, FS.EntryType.all, false, true, false) do
+		if string.sub(name, 1, 4) == ".git" then
+			goto l_continue
+		end
+
 		if entry_type == FS.EntryType.file then
 			if M.context.output[name] then
 				goto l_continue
