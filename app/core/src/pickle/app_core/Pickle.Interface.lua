@@ -280,15 +280,15 @@ function(opts, params)
 			uri = P.path(given_uri, "index.html")
 		end
 		uri = U.trim_leading_slashes(uri)
-		local o = P.context.output[uri]
+		local o = P.context.output_by_destination[uri]
 		if not o and not U.file_extension(uri) then
 			uri = P.path(uri, "index.html")
-			o = P.context.output[uri]
+			o = P.context.output_by_destination[uri]
 		end
 		local status_code = (o ~= nil) and 200 or 404
 		local headers = {}
 		if status_code == 404 then
-			o = P.context.output["404.html"]
+			o = P.context.output_by_destination["404.html"]
 			if o then
 				uri = "404.html"
 			end

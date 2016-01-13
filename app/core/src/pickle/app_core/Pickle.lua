@@ -197,7 +197,8 @@ function M.init()
 		template_cache = {},
 		filters = {},
 		post_collect = {},
-		output = {},
+		output_index = {},
+		output_by_destination = {},
 		output_by_source = {},
 		any_output = false,
 	}
@@ -577,6 +578,7 @@ function M.output(source, destination, data, context)
 	U.assert(U.is_instance(data, M.FakeMedium) or #destination > 0, "destination is empty")
 
 	local o = {
+		index = #M.context.output_index + 1,
 		source = source,
 		destination = U.trim_leading_slashes(destination),
 		medium = nil,
@@ -599,7 +601,7 @@ function M.output(source, destination, data, context)
 	U.type_assert(o.medium.data, "function")
 
 	M.context.any_output = true
-	local op = M.context.output[o.destination] or M.context.output_by_source[o.source]
+	local op = M.context.output_by_destination[o.destination] or M.context.output_by_source[o.source]
 	if op then
 		if o.source ~= op.source then
 			M.log(
@@ -617,15 +619,18 @@ function M.output(source, destination, data, context)
 		op.medium = nil
 		op.context = nil
 		op.data_cached = nil
-		M.context.output[op.destination] = nil
+		M.context.output_index[op.index] = nil
+		M.context.output_by_destination[op.destination] = nil
 		M.context.output_by_source[op.source] = nil
+		o.index = op.index
 	end
 	if #o.destination > 0 then
-		M.context.output[o.destination] = o
+		M.context.output_by_destination[o.destination] = o
 	end
 	if o.source ~= "<generated>" then
 		M.context.output_by_source[o.source] = o
 	end
+	M.context.output_index[o.index] = o
 	return true
 end
 
@@ -699,7 +704,7 @@ end
 function M.build_to_cache(all)
 	U.type_assert(all, "boolean", true)
 
-	for _, o in pairs(M.context.output) do
+	for _, o in ipairs(M.context.output_index) do
 		if all or not o.data_cached then
 			if not M.context.built then
 				M.log_chatter("cache: %s -> %s", o.source, o.destination)
@@ -728,7 +733,7 @@ function M.build_to_filesystem()
 		end
 
 		if entry_type == FS.EntryType.file then
-			if M.context.output[name] then
+			if M.context.output_by_destination[name] then
 				goto l_continue
 			end
 			local path = M.path(M.config.build_path, name)
@@ -786,7 +791,7 @@ function M.build_to_filesystem()
 	else
 		M.log("no output files")
 	end
-	for _, o in pairs(M.context.output) do
+	for _, o in ipairs(M.context.output_index) do
 		if #o.destination > 0 then
 			local dir = U.path_dir(o.destination)
 			if dir ~= "" and not M.create_path(M.path(M.config.build_path, dir)) then
