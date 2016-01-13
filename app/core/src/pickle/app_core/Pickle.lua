@@ -257,6 +257,10 @@ local function casual_file_same(a, b)
 	return false
 end
 
+function M.parse_time(time_str, format)
+	return Internal.strptime(time_str, format)
+end
+
 function M.replace_fields(to, from)
 	for k, v in pairs(from) do
 		local c = to[k]

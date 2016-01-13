@@ -30,6 +30,7 @@
 
 #include <cerrno>
 #include <cstring>
+#include <ctime>
 
 namespace pickle {
 
@@ -488,6 +489,20 @@ signed internal::li_set_signal_handler(lua_State* L) {
 		TOGO_LOG("error: failed to set signal handler\n");
 	}
 	lua::push_value(L, success);
+	return 1;
+}
+
+/// Parse a time string.
+signed internal::li_strptime(lua_State* L) {
+	auto str = lua::get_string(L, 1);
+	auto format = lua::get_string(L, 2);
+	struct ::tm value{};
+	auto p = ::strptime(str.data, format.data, &value);
+	if (p == end(str)) {
+		lua::push_value(L, mktime(&value));
+	} else {
+		lua::push_value(L, null_tag{});
+	}
 	return 1;
 }
 
