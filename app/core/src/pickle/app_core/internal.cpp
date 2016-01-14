@@ -196,8 +196,8 @@ static bool transformer_block(Transformer& t) {
 			break;
 
 		default:
-			t.prev = t.start + 1;
-			t.start = t.prev;
+			t.prev = t.start;
+			t.start = t.prev + 1;
 			break;
 		}
 	}
