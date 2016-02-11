@@ -310,7 +310,7 @@ end
 
 local chunk_metatable = {
 	__index = function(t, k)
-		return rawget(t, k) or rawget(t, "C")[k] or _G[k]
+		return k == "P" and M or rawget(t, "C")[k] or _G[k]
 	end,
 	__newindex = function(t, k, v)
 		rawget(t, "C")[k] = v
@@ -331,7 +331,6 @@ function M.Template:__init(path, data, layout)
 	self.path = path
 	self.layout = layout and M.get_template(layout) or nil
 	self.env = {
-		P = M,
 		C = nil,
 	}
 	self.prelude_func = nil
