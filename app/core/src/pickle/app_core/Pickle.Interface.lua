@@ -229,7 +229,7 @@ server [--delay=<delay>] [--addr=<addr>] [--port=<port>] <path>
 ]],
 function(opts, params)
 	if #params ~= 1 then
-		P.log("error: build: expected a single path")
+		P.log("error: server: expected a single path")
 		return false
 	end
 	local err = server_vf:consume_safe(nil, opts)
