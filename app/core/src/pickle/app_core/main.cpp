@@ -25,6 +25,7 @@ static LuaModuleFunctionArray const li_internal_funcs{
 	TOGO_LI_FUNC_REF(internal, make_server)
 	TOGO_LI_FUNC_REF(internal, set_signal_handler)
 	TOGO_LI_FUNC_REF(internal, strptime)
+	TOGO_LI_FUNC_REF(internal, strftime)
 	TOGO_LI_FUNC_REF(internal, __module_init__)
 };
 

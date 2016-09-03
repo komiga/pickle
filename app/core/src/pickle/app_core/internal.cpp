@@ -496,10 +496,60 @@ signed internal::li_set_signal_handler(lua_State* L) {
 signed internal::li_strptime(lua_State* L) {
 	auto str = lua::get_string(L, 1);
 	auto format = lua::get_string(L, 2);
-	struct ::tm value{};
-	auto p = ::strptime(str.data, format.data, &value);
-	if (p == end(str)) {
-		lua::push_value(L, mktime(&value));
+
+	struct ::tm tmval{};
+	if (end(str) == ::strptime(str.data, format.data, &tmval)) {
+		signed offset;
+#if defined(_GNU_SOURCE)
+		offset = static_cast<signed>(tmval.tm_gmtoff);
+#else
+		offset = 0;
+#endif
+		auto secs_utc = ::mktime(&tmval);
+		TOGO_ASSERTE(secs_utc != static_cast<::time_t>(-1));
+		// DESPAIR. mktime() adds the local timezone and the
+		// Internet's various "just do this" solutions are gross, so.
+		// (::timezone is not DST-adjusted, but this gets back to UTC even
+		// when DST is active in the timepoint, since ::timezone's extra hour
+		// corrects for it)
+		secs_utc -= ::timezone;
+		secs_utc -= offset;
+		lua::push_value(L, secs_utc);
+		lua::push_value(L, offset);
+		return 2;
+	}
+	lua::push_value(L, null_tag{});
+	return 1;
+}
+
+/// Format a time to a string.
+signed internal::li_strftime(lua_State* L) {
+	auto secs_utc = static_cast<::time_t>(lua::get_integer(L, 1));
+	auto format = lua::get_string(L, 2);
+	auto offset = luaL_opt(L, lua::get_integer, 3, 0);
+	secs_utc += offset;
+
+	struct ::tm tmval{};
+#if defined(_GNU_SOURCE)
+	if (!::gmtime_r(&secs_utc, &tmval)) {
+#else
+	if (!(tmval = ::gmtime(&secs_utc))) {
+#endif
+		lua::push_value(L, null_tag{});
+		return 1;
+	}
+#if defined(_GNU_SOURCE)
+	TOGO_ASSERTE(tmval.tm_gmtoff == 0);
+	// NB: this doesn't change the timepoint, it's only descriptive
+	tmval.tm_gmtoff = offset;
+	tmval.tm_isdst = 0;
+#endif
+
+	FixedArray<char, 128> str;
+	auto size = ::strftime(begin(str), fixed_array::capacity(str), format.data, &tmval);
+	if (size > 0) {
+		fixed_array::resize(str, size);
+		lua::push_value(L, str);
 	} else {
 		lua::push_value(L, null_tag{});
 	}
