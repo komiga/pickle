@@ -260,8 +260,38 @@ local function casual_file_same(a, b)
 end
 
 function M.parse_time(time_str, format)
-	return Internal.strptime(time_str, format)
+	local time = {}
+	time.secs, time.offset = Internal.strptime(time_str, format)
+	return time
 end
+
+function M.format_time(time, format)
+	if type(time) == "table" then
+		return Internal.strftime(time.secs, format, time.offset)
+	else
+		return Internal.strftime(time, format, 0)
+	end
+end
+
+--[[do
+	local iso_format = "%Y-%m-%dT%H:%M:%S%z"
+	local function check(str, secs, offset)
+		local time = M.parse_time(str, iso_format)
+		local str_rewritten = M.format_time(time, iso_format)
+		print("## check: ")
+		print("  i " .. str)
+		print("  r " .. str_rewritten)
+		print("  s " .. tostring(time.secs) .. " " .. tostring(time.secs - secs))
+		print("    " .. tostring(secs))
+		print("  z " .. tostring(time.offset) .. " " .. tostring(time.offset - offset))
+		print("    " .. tostring(offset))
+		U.assert(time.offset == offset, "offset")
+		U.assert(time.secs == secs, "secs")
+		U.assert(str == str_rewritten, "str")
+	end
+	check("2016-09-03T00:00:00+0000", 1472860800, 0)
+	check("2015-10-07T01:34:00-0400", 1444196040, -14400)
+end--]]
 
 function M.replace_fields(to, from)
 	for k, v in pairs(from) do
