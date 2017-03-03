@@ -440,7 +440,9 @@ static signed sh_hcount = 0;
 static signed sh_signum = 0;
 
 static void li_signal_handler(lua_State* L, lua_Debug*) {
-	lua::table_get_raw(L, LUA_GLOBALSINDEX, "__signal_handler__");
+	lua::table_get_index_raw(L, LUA_REGISTRYINDEX, LUA_RIDX_GLOBALS);
+	lua::table_get_raw(L, "__signal_handler__");
+	lua_remove(L, -2);
 	lua::table_get_index_raw(L, sh_signum);
 	if (lua_type(L, -1) == LUA_TFUNCTION) {
 		lua::push_value(L, sh_signum);
@@ -482,9 +484,10 @@ signed internal::li_set_signal_handler(lua_State* L) {
 
 	bool success = ::sigaction(signum, &sa, nullptr) == 0;
 	if (success) {
-		lua::table_get_raw(L, LUA_GLOBALSINDEX, "__signal_handler__");
+		lua::table_get_index_raw(L, LUA_REGISTRYINDEX, LUA_RIDX_GLOBALS);
+		lua::table_get_raw(L, "__signal_handler__");
 		lua::table_set_copy_index_raw(L, signum, 2);
-		lua_pop(L, 1);
+		lua_pop(L, 2);
 	} else {
 		TOGO_LOG("error: failed to set signal handler\n");
 	}
@@ -564,9 +567,10 @@ signed internal::li___module_init__(lua_State* L) {
 	}
 	lua_pop(L, 1);
 
+	lua::table_get_index_raw(L, LUA_REGISTRYINDEX, LUA_RIDX_GLOBALS);
 	lua_createtable(L, 0, 0);
-	lua::table_set_copy_raw(L, LUA_GLOBALSINDEX, "__signal_handler__", -1);
-	lua_pop(L, 1);
+	lua::table_set_copy_raw(L, -4, "__signal_handler__", -1);
+	lua_pop(L, 2);
 	sh_state = L;
 
 	for (auto& sn : signal_numbers) {
