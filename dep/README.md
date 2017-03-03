@@ -6,12 +6,12 @@ proper directories).
 
 ### app/core
 
-1. [LuaJIT](http://luajit.org/download.html) >= 2.0.4 into `luajit/`
+1. [Lua](https://www.lua.org/download.html) == **5.2.4** into `lua/`
 
 2. [togo](https://github.com/komiga/togo) (HEAD) into `togo/`:
 
   `git clone git://github.com/komiga/togo.git`
 
-3. [mmx](https://github.com/vurtun/mmx) (mm_web.h >= 1.00) into `mmx`:
+3. [mmx](https://github.com/vurtun/mmx) (mm_web.h >= **1.00**) into `mmx`:
 
   `git clone git@github.com:vurtun/mmx.git`
