@@ -281,7 +281,7 @@ function(opts, params)
 		end
 		uri = U.trim_leading_slashes(uri)
 		local o = P.context.output_by_destination[uri]
-		if not o and not U.file_extension(uri) then
+		if not o and not U.path_extension(uri) then
 			uri = P.path(uri, "index.html")
 			o = P.context.output_by_destination[uri]
 		end
@@ -293,7 +293,7 @@ function(opts, params)
 				uri = "404.html"
 			end
 		end
-		headers["Content-Type"] = content_types[U.file_extension(uri)] or "text/plain"
+		headers["Content-Type"] = content_types[U.path_extension(uri)] or "text/plain"
 
 		P.log_chatter(
 			"GET %s%s => %s",
