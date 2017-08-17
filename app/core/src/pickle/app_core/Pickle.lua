@@ -349,10 +349,11 @@ local chunk_metatable = {
 
 local BYTE_NEWLINE = string.byte("\n")
 
-function M.Template:__init(path, data, layout)
+function M.Template:__init(path, data, layout, content_post_func)
 	U.type_assert(path, "string", true)
 	U.type_assert(data, "string", path ~= nil)
 	U.type_assert_any(layout, {"string", M.Template}, true)
+	U.type_assert(content_post_func, "function", true)
 
 	if path == nil then
 		path = "<generated>"
@@ -365,6 +366,7 @@ function M.Template:__init(path, data, layout)
 	}
 	self.prelude_func = nil
 	self.content_func = nil
+	self.content_post_func = content_post_func
 
 	if data == nil then
 		data = IO.read_file(path)
@@ -402,10 +404,13 @@ function M.Template:__init(path, data, layout)
 	end
 end
 
-local function do_tpl_call(env, func, context)
+local function do_tpl_call(env, context, func, post_func)
 	rawset(env, "C", context)
 	local result = func()
 	rawset(env, "C", nil)
+	if post_func then
+		post_func(context)
+	end
 	return result
 end
 
@@ -415,7 +420,7 @@ function M.Template:prelude(context)
 	else
 		context = {}
 	end
-	return do_tpl_call(self.env, self.prelude_func, context)
+	return do_tpl_call(self.env, context, self.prelude_func, nil)
 end
 
 function M.Template:content(context)
@@ -424,7 +429,7 @@ function M.Template:content(context)
 	else
 		context = {}
 	end
-	local content = do_tpl_call(self.env, self.content_func, context)
+	local content = do_tpl_call(self.env, context, self.content_func, self.content_post_func)
 	if self.layout then
 		content = self.layout:content(setmetatable({
 			C = context, content = content
