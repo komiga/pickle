@@ -266,7 +266,7 @@ struct Server {
 	wby_server s;
 	void* data;
 };
-TOGO_LUA_MARK_USERDATA_ANCHOR(Server);
+TOGO_LUA_MARK_USERDATA_ANCHOR(Server)
 
 static void server_log(char const* msg) {
 	TOGO_LOG("server: ");
