@@ -13,17 +13,17 @@
 #include <togo/core/string/string.hpp>
 #include <togo/core/lua/lua.hpp>
 
-#define MM_WBY_IMPLEMENTATION
-#define MM_WBY_STATIC
-#define MM_WBY_UINT_PTR uintptr_t
-#define MM_WBY_ASSERT TOGO_ASSERTE
-#define MM_WBY_USE_ASSERT
+#define WBY_IMPLEMENTATION
+#define WBY_STATIC
+#define WBY_UINT_PTR uintptr_t
+#define WBY_ASSERT TOGO_ASSERTE
+#define WBY_USE_ASSERT
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 #pragma GCC diagnostic ignored "-Wunused-function"
 
-#include <mm_web.h>
+#include <web.h>
 #include <signal.h>
 
 #pragma GCC diagnostic pop
@@ -262,8 +262,8 @@ struct Server {
 	TOGO_LUA_MARK_USERDATA(Server);
 
 	lua_State* L;
-	mm_wby_config c;
-	mm_wby_server s;
+	wby_config c;
+	wby_server s;
 	void* data;
 };
 TOGO_LUA_MARK_USERDATA_ANCHOR(Server);
@@ -277,7 +277,7 @@ static void server_log(char const* msg) {
 	TOGO_LOG("\n");
 }
 
-static signed server_dispatch(mm_wby_con* connection, void* userdata) {
+static signed server_dispatch(wby_con* connection, void* userdata) {
 	auto& server = *static_cast<Server*>(userdata);
 	auto* L = server.L;
 	auto const& r = connection->request;
@@ -299,7 +299,7 @@ static signed server_dispatch(mm_wby_con* connection, void* userdata) {
 	if (lua_type(L, -2) != LUA_TNIL) {
 		status_code = lua::get_integer(L, -2);
 	}
-	FixedArray<mm_wby_header, 16> headers{};
+	FixedArray<wby_header, 16> headers{};
 	if (lua_type(L, -1) != LUA_TNIL) {
 		luaL_checktype(L, -1, LUA_TTABLE);
 		lua::push_value(L, null_tag{});
@@ -311,18 +311,18 @@ static signed server_dispatch(mm_wby_con* connection, void* userdata) {
 			lua_pop(L, 1);
 		}
 	}
-	mm_wby_response_begin(
+	wby_response_begin(
 		connection, status_code, data.size,
 		begin(headers), fixed_array::size(headers)
 	);
-	mm_wby_write(connection, data.data, data.size);
-	mm_wby_response_end(connection);
+	wby_write(connection, data.data, data.size);
+	wby_response_end(connection);
 	lua_pop(server.L, 2);
 	return 0;
 }
 
 static void server_stop(Server& server) {
-	mm_wby_server_stop(&server.s);
+	wby_stop(&server.s);
 }
 
 TOGO_LI_FUNC_DEF(server_destroy) {
@@ -336,7 +336,7 @@ TOGO_LI_FUNC_DEF(server_update) {
 	auto& server = *lua::get_userdata<Server>(L, 1);
 	luaL_checktype(L, 2, LUA_TFUNCTION);
 
-	mm_wby_server_update(&server.s);
+	wby_update(&server.s);
 	return 0;
 }
 
@@ -374,10 +374,10 @@ signed internal::li_make_server(lua_State* L) {
 	server.c.log = with_log ? server_log : nullptr;
 	server.c.dispatch = server_dispatch;
 
-	mm_wby_size size;
-	mm_wby_server_init(&server.s, &server.c, &size);
+	wby_size size;
+	wby_init(&server.s, &server.c, &size);
 	server.data = memory::default_allocator().allocate(size);
-	if (mm_wby_server_start(&server.s, server.data) == 0) {
+	if (wby_start(&server.s, server.data) == 0) {
 		lua::push_value(L, null_tag{});
 	} else {
 		lua_pop(L, 1);
